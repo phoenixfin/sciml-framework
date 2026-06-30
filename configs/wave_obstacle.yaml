@@ -1,0 +1,31 @@
+# PINN / moving-boundary wave (reproduces pinn_string_obstacle_original_v4).
+name: wave_obstacle_v4
+output_dir: outputs/wave_obstacle
+params: { b: 0.3, a_bc: 0.0, eps: 0.1, delta: 0.04, t_final: 6.0 }
+net:
+  nu_freq: 64
+  nu_hidden: 5
+  nu_width: 128
+  ns_hidden: 5
+  ns_width: 96
+  s_lo: 0.05
+  s_hi_margin: 0.01
+loss:
+  weights: { pde: 1.0, excl: 1.0, bcd: 20.0, bcn: 80.0, bcr: 10.0, icu: 15.0, icv: 5.0, s0: 50.0, sv: 30.0 }
+  mask_eps: 0.008
+  n_pde: 5000
+  n_bc: 600
+  n_bcr: 200
+  n_ic: 300
+  n_sv: 400
+train:
+  phases:
+    - { name: "1a", steps: 3000, lr: 1.0e-3, eps_c_start: 5.0, eps_c_end: 2.0, rar_every: 0 }
+    - { name: "1b", steps: 3000, lr: 1.0e-3, eps_c_start: 2.0, eps_c_end: 0.5, rar_every: 0 }
+    - { name: "2",  steps: 4000, lr: 3.0e-4, eps_c_start: 0.5, eps_c_end: 0.1, rar_every: 500 }
+    - { name: "2b", steps: 3000, lr: 1.0e-4, eps_c_start: 0.1, eps_c_end: 0.0, rar_every: 500 }
+    - { name: "2c", steps: 2000, lr: 5.0e-5, eps_c_start: 0.0, eps_c_end: 0.0, rar_every: 0 }
+  lbfgs_maxiter: 6000
+  lbfgs_restart_maxiter: 3000
+  fdm_nx: 300
+  seed: 42

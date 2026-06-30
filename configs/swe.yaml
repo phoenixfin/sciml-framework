@@ -1,0 +1,38 @@
+# DeepONet / Shallow Water Equations (reproduces the pi_deeponet_swe_v6 notebook).
+name: swe_v6
+output_dir: outputs/swe
+domain: { length: 10.0, t_final: 1.0, gravity: 9.81 }
+model:
+  n_sensors: 100
+  width: 64
+  hidden: [128, 128, 128]
+  out_std: 0.1
+  h_min: 0.05
+  eps: 1.0e-4
+data:
+  grid: 500
+  n_train: 500
+  n_test: 100
+  n_data_gp: 150
+  t_snaps: [0.25, 0.5, 0.75, 1.0]
+  solver_nx: 400
+  solver_nt: 4000
+  h0_length_scale: 2.0
+  h0_amp: 0.4
+  h0_mean: 1.0
+  h0_clip_min: 0.3
+  bath_length_scale: 3.0
+  bath_amp: 0.12
+train:
+  n_iter: 40000
+  batch: 8
+  n_bc: 200
+  lr: 1.0e-3
+  lr_decay_steps: 10000
+  lr_decay_rate: 0.5
+  grad_clip: 1.0
+  lam_bc: 5.0
+  lam_hu: 5.0
+  ckpt_every: 2000
+  log_every: 1000
+  seed: 42

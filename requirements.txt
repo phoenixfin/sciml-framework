@@ -1,0 +1,17 @@
+# Core (pure-numpy utilities, solvers, SINDy core, configs).
+numpy>=1.23
+matplotlib>=3.5
+
+# SINDy / epidemiology example (global LASSO regression + spreadsheet loading).
+scikit-learn>=1.1
+pandas>=1.5
+openpyxl>=3.0
+
+# Neural methods (DeepONet, PINN). TensorFlow ships wheels for CPython 3.9-3.12;
+# create a 3.10-3.12 venv if you are on 3.13+/3.14. SciPy powers the PINN L-BFGS phase.
+tensorflow>=2.12,<2.17
+scipy>=1.9
+
+# Optional: YAML configs (JSON works without this). Dev: tests.
+pyyaml>=6.0
+pytest>=7.0

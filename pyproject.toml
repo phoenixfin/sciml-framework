@@ -1,0 +1,50 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sciml"
+version = "0.2.0"
+description = "A scientific-machine-learning research framework: DeepONet, PINN and SINDy methods over a shared core, with worked examples."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "sciml contributors" }]
+keywords = ["scientific-machine-learning", "deeponet", "pinn", "sindy",
+            "operator-learning", "physics-informed", "system-identification", "pde"]
+
+# Core is pure-numpy / pandas so the shared utilities, solvers, SINDy core and
+# data tooling import without a deep-learning backend. Heavier method
+# dependencies are optional extras.
+dependencies = [
+    "numpy>=1.23",
+    "matplotlib>=3.5",
+]
+
+[project.optional-dependencies]
+# Neural methods (DeepONet, PINN) need TensorFlow; PINN's L-BFGS phase needs SciPy.
+deeponet = ["tensorflow>=2.12,<2.17"]
+pinn = ["tensorflow>=2.12,<2.17", "scipy>=1.9"]
+# SINDy *core* is pure numpy; the epidemiology example adds these for global
+# LASSO regression and spreadsheet loading.
+sindy = ["scikit-learn>=1.1", "pandas>=1.5", "openpyxl>=3.0"]
+yaml = ["pyyaml>=6.0"]
+dev = ["pytest>=7.0", "pyyaml>=6.0"]
+all = [
+    "tensorflow>=2.12,<2.17", "scipy>=1.9",
+    "scikit-learn>=1.1", "pandas>=1.5", "openpyxl>=3.0",
+    "pyyaml>=6.0", "pytest>=7.0",
+]
+
+[project.scripts]
+sciml = "sciml.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+sciml = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

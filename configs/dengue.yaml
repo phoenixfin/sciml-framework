@@ -1,0 +1,42 @@
+# SINDy / dengue beta(t) identification.
+# Defaults SIMULATE data so it runs with no downloads. To use a real weekly
+# series set data.use_real: true and data.path to an .xlsx/.csv file.
+name: dengue_beta
+output_dir: outputs/epidemiology
+seed: 42
+model:
+  model: SIRS          # SI | SIR | SIRS
+  N: 100000
+  reporting: 0.1
+  gamma: 0.7142857     # 1/1.4
+  mu: 0.00027472       # 1/(52*70)
+  omega: 0.00641026    # 1/(52*3)
+data:
+  use_real: false
+  path: null
+  year_col: Tahun
+  week_col: Week
+  infected_col: Cases
+  sim_weeks: 520
+  sim_i0: 50
+  sim_noise: 0.002
+  beta_base: 0.25
+  beta_amp: 0.12
+  beta_phase: 10.0
+  beta_period: 52.0
+  sg_window: 11
+  sg_poly: 3
+estim:
+  s_recon: cumulative  # cumulative | ode | ekf
+  local_methods: [direct, windowed]
+  global_basis: time   # time | none
+  mask_eps: 1.0e-4
+  window_size: 8
+  window_step: 1
+  str_thresh: 0.01
+  str_alpha: 0.01
+  poly_degree: 3
+  n_fourier: 5
+  fourier_period: 52.0
+  lasso_alpha: 1.0e-5
+  sparse_method: stridge   # stridge (numpy) | lasso (needs scikit-learn)
