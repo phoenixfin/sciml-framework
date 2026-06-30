@@ -5,7 +5,7 @@ import numpy as np
 from sciml.methods.dmd import DMD
 from sciml.methods.sindy import PolynomialLibrary, SINDy
 from sciml.solvers.dynamical import (harmonic_oscillator, lorenz,
-                                      lotka_volterra, simulate)
+                                      lotka_volterra, simulate, van_der_pol)
 
 
 def _coef(model, target_idx, feature):
@@ -33,6 +33,16 @@ def test_sindy_recovers_lotka_volterra():
     assert abs(_coef(m, 0, "x*y") - (-0.1)) < 0.02
     assert abs(_coef(m, 1, "y") - (-1.5)) < 0.05
     assert abs(_coef(m, 1, "x*y") - 0.075) < 0.02
+
+
+def test_sindy_recovers_van_der_pol():
+    t = np.arange(0, 30, 0.01)
+    X = simulate(van_der_pol(1.5), [2.0, 0.0], t)
+    m = SINDy(PolynomialLibrary(3), threshold=0.05).fit(X, t=t, input_names=["x", "y"])
+    assert abs(_coef(m, 0, "y") - 1.0) < 0.05          # x' = y
+    assert abs(_coef(m, 1, "x") - (-1.0)) < 0.05       # y' = 1.5 y - x - 1.5 x^2 y
+    assert abs(_coef(m, 1, "y") - 1.5) < 0.05
+    assert abs(_coef(m, 1, "x^2*y") - (-1.5)) < 0.05
 
 
 def test_dmd_recovers_oscillator_frequency():

@@ -1,8 +1,8 @@
 import numpy as np
 
 from sciml.solvers.burgers import burgers_solution
-from sciml.solvers.dynamical import (harmonic_oscillator, lorenz,
-                                      lotka_volterra, simulate)
+from sciml.solvers.dynamical import (fitzhugh_nagumo, harmonic_oscillator, lorenz,
+                                      lotka_volterra, simulate, van_der_pol)
 from sciml.solvers.heat import heat_solution
 
 
@@ -36,6 +36,18 @@ def test_heat_high_mode_decays():
     # constant (mean) mode is preserved
     u0c = u0 + 2.0
     assert abs(np.mean(heat_solution(u0c, nu, t)) - np.mean(u0c)) < 1e-6
+
+
+def test_van_der_pol_limit_cycle_bounded():
+    t = np.arange(0, 40, 0.01)
+    X = simulate(van_der_pol(1.5), [2.0, 0.0], t)
+    assert np.isfinite(X).all() and np.abs(X[:, 0]).max() < 5
+
+
+def test_fitzhugh_nagumo_bounded():
+    t = np.arange(0, 200, 0.05)
+    X = simulate(fitzhugh_nagumo(), [-1.0, 1.0], t)
+    assert np.isfinite(X).all() and np.abs(X).max() < 5
 
 
 def test_burgers_conserves_mean_dissipates_energy():

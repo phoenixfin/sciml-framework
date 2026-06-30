@@ -61,6 +61,13 @@ def test_fno1d_shapes():
     assert SpectralConv1D(5, modes=8)(tf.random.normal((2, 32, 4))).shape == (2, 32, 5)
 
 
+def test_fno2d_shapes():
+    from sciml.methods.fno import SpectralConv2D, build_fno2d
+    model = build_fno2d(grid=16, modes=6, width=8, n_layers=2, in_channels=3, out_channels=1)
+    assert model(tf.random.normal((2, 16, 16, 3))).shape == (2, 16, 16, 1)
+    assert SpectralConv2D(5, 4, 4)(tf.random.normal((2, 16, 16, 3))).shape == (2, 16, 16, 5)
+
+
 # ---- Neural ODE ------------------------------------------------------------
 def test_neural_ode_shapes_and_fit_reduces_loss():
     from sciml.methods.neuralode import NeuralODE, build_odefunc

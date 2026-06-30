@@ -5,7 +5,7 @@ from __future__ import annotations
 import tensorflow as tf
 from tensorflow import keras
 
-from .spectral import SpectralConv1D
+from .spectral import SpectralConv1D, SpectralConv2D
 
 
 class FNOBlock(keras.layers.Layer):
@@ -43,5 +43,38 @@ def build_fno1d(modes: int = 16, width: int = 64, n_layers: int = 4,
     for i in range(n_layers):
         v = FNOBlock(width, modes, name=f"fno_block_{i}")(v)
     v = keras.layers.Dense(128, activation=tf.nn.gelu)(v)  # projection
+    out = keras.layers.Dense(out_channels)(v)
+    return keras.Model(inp, out, name=name)
+
+
+class FNOBlock2D(keras.layers.Layer):
+    """One 2D FNO layer: ``activation(SpectralConv2D(v) + Conv2D_1x1(v))``."""
+
+    def __init__(self, width: int, modes1: int, modes2: int,
+                 activation=tf.nn.gelu, **kw):
+        super().__init__(**kw)
+        self.width, self.modes1, self.modes2 = width, modes1, modes2
+        self.activation = activation
+        self.spec = SpectralConv2D(width, modes1, modes2)
+        self.pointwise = keras.layers.Conv2D(width, 1)
+
+    def call(self, x):
+        return self.activation(self.spec(x) + self.pointwise(x))
+
+
+def build_fno2d(grid: int, modes: int = 12, width: int = 32, n_layers: int = 4,
+                in_channels: int = 3, out_channels: int = 1,
+                name: str = "fno2d") -> keras.Model:
+    """A 2D Fourier Neural Operator on a fixed ``grid x grid`` mesh.
+
+    Maps ``(batch, grid, grid, in_channels)`` to ``(batch, grid, grid, out_channels)``.
+    ``in_channels`` typically stacks the input field with the ``(x, y)`` coords.
+    ``modes`` must satisfy ``modes <= grid // 2``.
+    """
+    inp = keras.Input((grid, grid, in_channels))
+    v = keras.layers.Dense(width)(inp)
+    for i in range(n_layers):
+        v = FNOBlock2D(width, modes, modes, name=f"fno2d_block_{i}")(v)
+    v = keras.layers.Dense(128, activation=tf.nn.gelu)(v)
     out = keras.layers.Dense(out_channels)(v)
     return keras.Model(inp, out, name=name)

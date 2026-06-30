@@ -14,7 +14,7 @@ Additional model engines (generic, no packaged example yet — see `tests/` for 
 
 | Method | Engine | Backend |
 |---|---|---|
-| **FNO** (Fourier Neural Operator) | `sciml.methods.fno` | TensorFlow |
+| **FNO** (Fourier Neural Operator, 1D + 2D) | `sciml.methods.fno` | TensorFlow |
 | **Neural ODE** (continuous-depth dynamics) | `sciml.methods.neuralode` | TensorFlow |
 | **DMD / Koopman** (dynamic mode decomposition) | `sciml.methods.dmd` | pure numpy |
 
@@ -36,7 +36,7 @@ src/sciml/
     pinn/      layers (Fourier), networks, gradients, training (Adam+L-BFGS),
                sampling (RAR)                                                   (TF + SciPy)
     sindy/     sparse (STRidge), library (Poly/Fourier/Custom), model (SINDy)  (pure numpy)
-    fno/       spectral (SpectralConv1D), model (FNOBlock, build_fno1d)        (TensorFlow)
+    fno/       spectral (SpectralConv1D/2D), model (build_fno1d / build_fno2d) (TensorFlow)
     neuralode/ integrators (Euler/RK4 odeint), model (NeuralODE)               (TensorFlow)
     dmd/       dmd (exact DMD / Koopman)                                       (pure numpy)
   problems/
