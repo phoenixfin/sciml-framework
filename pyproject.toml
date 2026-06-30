@@ -22,9 +22,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Neural methods (DeepONet, PINN) need TensorFlow; PINN's L-BFGS phase needs SciPy.
+# Neural methods (DeepONet, PINN, FNO, Neural ODE) need TensorFlow;
+# PINN's L-BFGS phase needs SciPy. DMD/Koopman is pure numpy (no extra).
 deeponet = ["tensorflow>=2.12,<2.17"]
 pinn = ["tensorflow>=2.12,<2.17", "scipy>=1.9"]
+fno = ["tensorflow>=2.12,<2.17"]
+neuralode = ["tensorflow>=2.12,<2.17"]
 # SINDy *core* is pure numpy; the epidemiology example adds these for global
 # LASSO regression and spreadsheet loading.
 sindy = ["scikit-learn>=1.1", "pandas>=1.5", "openpyxl>=3.0"]

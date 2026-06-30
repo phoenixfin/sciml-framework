@@ -49,3 +49,26 @@ def test_derivatives_2d_on_known_field():
     d = derivatives_2d(model, xt)
     assert np.allclose(d["u_xx"].numpy(), 2.0, atol=1e-3)
     assert np.allclose(d["u_tt"].numpy(), 4.0, atol=1e-3)
+
+
+# ---- FNO -------------------------------------------------------------------
+def test_fno1d_shapes():
+    from sciml.methods.fno import SpectralConv1D, build_fno1d
+    model = build_fno1d(modes=8, width=16, n_layers=2, in_channels=2, out_channels=1)
+    x = tf.random.normal((3, 64, 2))
+    assert model(x).shape == (3, 64, 1)
+    # spectral layer alone preserves spatial length, maps channels
+    assert SpectralConv1D(5, modes=8)(tf.random.normal((2, 32, 4))).shape == (2, 32, 5)
+
+
+# ---- Neural ODE ------------------------------------------------------------
+def test_neural_ode_shapes_and_fit_reduces_loss():
+    from sciml.methods.neuralode import NeuralODE, build_odefunc
+    node = NeuralODE(build_odefunc(2, hidden=(16,)))
+    y0 = tf.random.normal((5, 2))
+    t = np.linspace(0, 1, 10)
+    assert node(y0, t).shape == (10, 5, 2)
+    # Fit toward an exponential-decay target; loss should drop.
+    target = np.stack([(y0.numpy() * np.exp(-tt)) for tt in t]).astype("float32")
+    hist = node.fit_trajectory(y0, t, target, steps=40, lr=5e-2, verbose=False)
+    assert hist[-1] < hist[0]

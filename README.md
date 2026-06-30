@@ -10,6 +10,14 @@ from a research notebook:
 | **PINN** (physics-informed NN) | `sciml.methods.pinn` | moving-boundary wave / obstacle (`problems.wave_obstacle`) |
 | **SINDy** (sparse identification) | `sciml.methods.sindy` | dengue β(t) identification (`problems.epidemiology`) |
 
+Additional model engines (generic, no packaged example yet — see `tests/` for usage):
+
+| Method | Engine | Backend |
+|---|---|---|
+| **FNO** (Fourier Neural Operator) | `sciml.methods.fno` | TensorFlow |
+| **Neural ODE** (continuous-depth dynamics) | `sciml.methods.neuralode` | TensorFlow |
+| **DMD / Koopman** (dynamic mode decomposition) | `sciml.methods.dmd` | pure numpy |
+
 The design goal: the **method engines and the shared substrate are generic**;
 each PDE/system is a problem that plugs in. Adding a new problem (or a new
 method) means writing one module, not forking the repo.
@@ -28,6 +36,9 @@ src/sciml/
     pinn/      layers (Fourier), networks, gradients, training (Adam+L-BFGS),
                sampling (RAR)                                                   (TF + SciPy)
     sindy/     sparse (STRidge), library (Poly/Fourier/Custom), model (SINDy)  (pure numpy)
+    fno/       spectral (SpectralConv1D), model (FNOBlock, build_fno1d)        (TensorFlow)
+    neuralode/ integrators (Euler/RK4 odeint), model (NeuralODE)               (TensorFlow)
+    dmd/       dmd (exact DMD / Koopman)                                       (pure numpy)
   problems/
     swe/            DeepONet on the SWE         (config, cases, model, problem, runners)
     wave_obstacle/  PINN on a moving boundary   (config, problem, runners)
@@ -105,12 +116,20 @@ epi_runners.run()                             # simulate -> reconstruct S -> ide
 from sciml.methods.deeponet import DeepONetOperator          # generic operator net
 from sciml.methods.pinn import build_mlp, derivatives_2d, PINNTrainer
 from sciml.methods.sindy import SINDy, PolynomialLibrary, stridge
+from sciml.methods.fno import build_fno1d                     # Fourier Neural Operator
+from sciml.methods.neuralode import NeuralODE, build_odefunc  # continuous-depth dynamics
+from sciml.methods.dmd import DMD                             # dynamic mode decomposition
 
-# Identify x' = -0.5 x from data:
+# SINDy: identify x' = -0.5 x from data
 import numpy as np
 t = np.linspace(0, 10, 500); x = np.exp(-0.5*t)[:, None]
 model = SINDy(PolynomialLibrary(degree=1), threshold=0.05).fit(x, t=t, input_names=["x"])
 print(model.equations(["dx/dt"]))             # -> dx/dt = -0.5000 x
+
+# DMD: extract spatial modes + temporal eigenvalues from snapshots (pure numpy)
+X = np.random.rand(64, 100)                   # (n_features, n_time)
+dmd = DMD(rank=8).fit(X, dt=0.1)
+recon = dmd.reconstruct(X.shape[1])           # dmd.eigenvalues / .omega / .modes
 ```
 
 ---
