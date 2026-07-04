@@ -26,8 +26,8 @@ def main():
     ap.add_argument("--epochs", type=int, default=80)
     args = ap.parse_args()
 
-    import tensorflow as tf
     from tensorflow import keras
+
     from sciml.methods.fno import build_fno2d
 
     m = args.grid

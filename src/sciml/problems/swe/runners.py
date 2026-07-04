@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import os
-from typing import Dict, Optional, Tuple
+from typing import TYPE_CHECKING, Dict, Optional, Tuple
 
 import numpy as np
+
+if TYPE_CHECKING:  # import only for type annotations (keeps runtime TF-free)
+    import tensorflow as tf
 
 from ...core.io import save_json
 from ...core.logging import get_logger
@@ -169,7 +172,8 @@ def generalization(prob: SWEProblem, model: tf.keras.Model, n_test: Optional[int
     summary = {
         "mean_eps_h": float(errs_h.mean()), "mean_eps_hu": float(errs_hu.mean()),
         "median_eps_h": float(np.median(errs_h)), "median_eps_hu": float(np.median(errs_hu)),
-        "p90_eps_h": float(np.percentile(errs_h, 90)), "p90_eps_hu": float(np.percentile(errs_hu, 90)),
+        "p90_eps_h": float(np.percentile(errs_h, 90)),
+        "p90_eps_hu": float(np.percentile(errs_hu, 90)),
     }
     _generalization_fig(errs_h, errs_hu, out_dir)
     if verbose:

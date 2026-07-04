@@ -11,11 +11,11 @@ Reusable building blocks distilled from the moving-boundary wave example:
 The SciPy L-BFGS phase is optional; the Adam phases need only TensorFlow.
 """
 
+from .gradients import derivatives_2d
 from .layers import FourierEmbedding, ScaledSigmoid
 from .networks import build_mlp
-from .gradients import derivatives_2d
-from .training import PINNTrainer, causal_weight
 from .sampling import beta_max_sampling, replace_high_residual
+from .training import PINNTrainer, causal_weight
 
 __all__ = [
     "FourierEmbedding", "ScaledSigmoid", "build_mlp", "derivatives_2d",

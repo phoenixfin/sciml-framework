@@ -27,8 +27,8 @@ def _cmd_swe(args: argparse.Namespace) -> None:
     -------
     None
     """
-    from .problems.swe.config import SWEConfig
     from .problems.swe import runners
+    from .problems.swe.config import SWEConfig
     cfg = SWEConfig.load(args.config) if args.config else SWEConfig()
     if args.quick:
         cfg.data.n_train, cfg.data.n_data_gp, cfg.data.n_test = 40, 12, 8
@@ -58,8 +58,8 @@ def _cmd_wave(args: argparse.Namespace) -> None:
     -------
     None
     """
-    from .problems.wave_obstacle.config import WaveObstacleConfig
     from .problems.wave_obstacle import runners
+    from .problems.wave_obstacle.config import WaveObstacleConfig
     cfg = WaveObstacleConfig.load(args.config) if args.config else WaveObstacleConfig()
     if args.quick:
         for p in cfg.train.phases:
@@ -84,8 +84,8 @@ def _cmd_dengue(args: argparse.Namespace) -> None:
     -------
     None
     """
-    from .problems.epidemiology.config import EpiConfig
     from .problems.epidemiology import runners
+    from .problems.epidemiology.config import EpiConfig
     cfg = EpiConfig.load(args.config) if args.config else EpiConfig()
     if args.quick:
         cfg.data.sim_weeks = 156

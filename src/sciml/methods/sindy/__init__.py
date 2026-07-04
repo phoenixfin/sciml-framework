@@ -6,10 +6,15 @@ that fits ``Xdot ~ Theta(X) @ Xi``. scikit-learn is optional and only used by
 the LASSO-based variants in the epidemiology example.
 """
 
-from .sparse import stridge, ridge_regression
-from .library import (FeatureLibrary, PolynomialLibrary, FourierLibrary,
-                      ConcatLibrary, CustomLibrary)
+from .library import (
+                      ConcatLibrary,
+                      CustomLibrary,
+                      FeatureLibrary,
+                      FourierLibrary,
+                      PolynomialLibrary,
+)
 from .model import SINDy, windowed_coefficients
+from .sparse import ridge_regression, stridge
 
 __all__ = [
     "stridge", "ridge_regression",

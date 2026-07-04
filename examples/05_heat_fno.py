@@ -41,7 +41,6 @@ def main():
     ap.add_argument("--t-final", type=float, default=0.1)
     args = ap.parse_args()
 
-    import tensorflow as tf
     from tensorflow import keras
 
     xs, X, Y = make_dataset(args.n, args.grid, args.nu, args.t_final)

@@ -70,8 +70,10 @@ def main():
     ehu_m = [np.mean(results[n]["eps_hu"]) for n in nd_vals]
     ehu_s = [np.std(results[n]["eps_hu"]) for n in nd_vals]
     fig, ax = plt.subplots(figsize=(5, 3.2))
-    ax.errorbar(nd_vals, eh_m, yerr=eh_s, fmt="b-o", lw=1.4, ms=5, capsize=3, label=r"$\bar\varepsilon_h$")
-    ax.errorbar(nd_vals, ehu_m, yerr=ehu_s, fmt="r-s", lw=1.4, ms=5, capsize=3, label=r"$\bar\varepsilon_{hu}$")
+    ax.errorbar(nd_vals, eh_m, yerr=eh_s, fmt="b-o", lw=1.4, ms=5, capsize=3,
+                label=r"$\bar\varepsilon_h$")
+    ax.errorbar(nd_vals, ehu_m, yerr=ehu_s, fmt="r-s", lw=1.4, ms=5, capsize=3,
+                label=r"$\bar\varepsilon_{hu}$")
     ax.set_yscale("log")
     ax.set(xlabel="Supervised samples $N_d$", ylabel="Mean rel. $L^2$ error",
            title="Error vs. supervised sample count")

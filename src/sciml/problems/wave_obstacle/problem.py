@@ -14,10 +14,10 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 
-from ...solvers.wave_fdm import wave_moving_boundary_fdm
-from ..base import Problem
 from ...methods.pinn.layers import ScaledSigmoid
 from ...methods.pinn.networks import build_mlp
+from ...solvers.wave_fdm import wave_moving_boundary_fdm
+from ..base import Problem
 from .config import WaveObstacleConfig
 
 

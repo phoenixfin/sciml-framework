@@ -1,7 +1,6 @@
 import numpy as np
 
-from sciml.methods.sindy.library import (ConcatLibrary, FourierLibrary,
-                                         PolynomialLibrary)
+from sciml.methods.sindy.library import ConcatLibrary, FourierLibrary, PolynomialLibrary
 from sciml.methods.sindy.model import SINDy, windowed_coefficients
 from sciml.methods.sindy.sparse import ridge_regression, stridge
 

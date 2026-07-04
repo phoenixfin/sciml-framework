@@ -30,6 +30,7 @@ def main():
     args = ap.parse_args()
 
     import tensorflow as tf
+
     from sciml.methods.deeponet import DeepONet
 
     rng = np.random.default_rng(0)

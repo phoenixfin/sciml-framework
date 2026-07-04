@@ -1,8 +1,14 @@
 import numpy as np
 
 from sciml.solvers.burgers import burgers_solution
-from sciml.solvers.dynamical import (fitzhugh_nagumo, harmonic_oscillator, lorenz,
-                                      lotka_volterra, simulate, van_der_pol)
+from sciml.solvers.dynamical import (
+    fitzhugh_nagumo,
+    harmonic_oscillator,
+    lorenz,
+    lotka_volterra,
+    simulate,
+    van_der_pol,
+)
 from sciml.solvers.heat import heat_solution
 
 

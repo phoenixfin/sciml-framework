@@ -9,7 +9,7 @@ ODE systems (e.g. compartmental epidemic models) from trajectories.
 * :class:`NeuralODE`    -- a model wrapping ``f`` with a trajectory fit helper.
 """
 
-from .integrators import odeint, euler_step, rk4_step
+from .integrators import euler_step, odeint, rk4_step
 from .model import NeuralODE, build_odefunc
 
 __all__ = ["odeint", "euler_step", "rk4_step", "NeuralODE", "build_odefunc"]

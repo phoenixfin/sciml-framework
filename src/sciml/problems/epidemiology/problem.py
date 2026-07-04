@@ -167,7 +167,8 @@ class EpiProblem(Problem):
                 method=e.sparse_method, alpha=e.str_alpha, lasso_alpha=e.lasso_alpha)
             active = np.abs(xi) > 1e-6
             out["global"] = {"t": self.data["t"], "beta": beta_global,
-                             "terms": [(n, float(c)) for n, c in zip(np.array(names)[active], xi[active])]}
+                             "terms": [(n, float(c))
+                                       for n, c in zip(np.array(names)[active], xi[active])]}
         return out
 
     def reference(self) -> Optional[np.ndarray]:

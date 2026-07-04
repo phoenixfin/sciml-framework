@@ -31,7 +31,8 @@ def main():
     args = ap.parse_args()
 
     import tensorflow as tf
-    from sciml.methods.pinn import build_mlp, PINNTrainer
+
+    from sciml.methods.pinn import PINNTrainer, build_mlp
     from sciml.methods.pinn.gradients import derivatives_2d
 
     net = build_mlp(2, hidden=4, width=64, out_dim=1, fourier_freq=16,

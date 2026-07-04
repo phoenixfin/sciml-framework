@@ -92,12 +92,33 @@ pytest -q
 Because TensorFlow has no wheels for Python 3.13+/3.14, the TF engines are also
 guarded by `python -m compileall src` (syntax check) in that environment.
 
-## Continuous checks (suggested)
+## Linting & formatting
 
-A minimal CI on a TF-free runner can enforce the always-available guarantees:
+[`ruff`](https://docs.astral.sh/ruff/) enforces pyflakes/pycodestyle/import-order
+(`[tool.ruff]` in `pyproject.toml`). Pyupgrade (`UP`) is intentionally disabled —
+it would rewrite `typing.List`/`Optional` in signatures and break the
+docstring↔signature type matching pydoclint enforces. The terse multi-statement
+style (`E702`/`E731`) and `I` (infected compartment, `E741`) are ignored.
 
 ```bash
-python -m compileall src        # syntax, incl. TF modules
-pytest -q                       # numpy tests
-interrogate src                 # 100% docstring coverage
+ruff check src experiments examples tests
+```
+
+## Continuous integration
+
+Two GitHub Actions workflows (`.github/workflows/`):
+
+- **`ci.yml`** runs on every push/PR to `main`:
+  - a fast **backend-free** job — `ruff`, `pydoclint`, `interrogate`,
+    `compileall`, and the numpy `pytest` suite;
+  - a **TensorFlow** job (Python 3.11 + `.[all]`) that runs the TF-guarded tests
+    *and* smoke-trains a real FNO — the first place the TF engines actually
+    execute end-to-end.
+- **`docs.yml`** builds this API reference with `pdoc` and publishes it to
+  GitHub Pages (enable *Settings → Pages → Source: GitHub Actions* once).
+
+Pre-commit hooks mirror the fast checks (`.pre-commit-config.yaml`):
+
+```bash
+pip install -e ".[dev]" && pre-commit install
 ```

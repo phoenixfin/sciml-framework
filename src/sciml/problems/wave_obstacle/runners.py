@@ -105,7 +105,6 @@ def field_error(prob: WaveObstacleProblem, nh: int = 80) -> Tuple[float, np.ndar
     Tuple[float, np.ndarray, np.ndarray]
         The relative L2 field error (percent) and the PINN and reference fields.
     """
-    import tensorflow as tf
     ref = prob.reference(n_snaps=100)
     n_t = len(ref["t"])
     U_pinn = np.full((nh, n_t), np.nan)

@@ -4,8 +4,13 @@ import numpy as np
 
 from sciml.methods.dmd import DMD
 from sciml.methods.sindy import PolynomialLibrary, SINDy
-from sciml.solvers.dynamical import (harmonic_oscillator, lorenz,
-                                      lotka_volterra, simulate, van_der_pol)
+from sciml.solvers.dynamical import (
+    harmonic_oscillator,
+    lorenz,
+    lotka_volterra,
+    simulate,
+    van_der_pol,
+)
 
 
 def _coef(model, target_idx, feature):

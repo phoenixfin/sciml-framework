@@ -1,5 +1,10 @@
 # sciml
 
+[![CI](https://github.com/phoenixfin/sciml-framework/actions/workflows/ci.yml/badge.svg)](https://github.com/phoenixfin/sciml-framework/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.9–3.12](https://img.shields.io/badge/python-3.9%E2%80%933.12-blue.svg)](pyproject.toml)
+[![Docstrings: NumPy](https://img.shields.io/badge/docstrings-NumPy%20%7C%20100%25-brightgreen.svg)](docs/reference.md)
+
 A small **scientific-machine-learning** research framework. Three method
 families share one substrate, each demonstrated on a worked example distilled
 from a research notebook:

@@ -1,0 +1,39 @@
+# Pre-commit hooks: run the same gates CI runs, before each commit.
+# Install once with:  pip install -e ".[dev]" && pre-commit install
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
+    hooks:
+      - id: ruff                       # lint (auto-fixes imports, etc.)
+        args: [--fix]
+      # NOTE: `ruff format` is intentionally NOT enabled — the terse multi-statement
+      # style (semicolons, aligned comments) is deliberate; only linting is enforced.
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+
+  - repo: local
+    hooks:
+      - id: pydoclint
+        name: pydoclint (docstring completeness)
+        entry: pydoclint
+        language: python
+        additional_dependencies: ["pydoclint>=0.4"]
+        files: ^src/
+        pass_filenames: false
+        args: ["src"]
+
+      - id: interrogate
+        name: interrogate (docstring coverage 100%)
+        entry: interrogate
+        language: python
+        additional_dependencies: ["interrogate>=1.5"]
+        files: ^src/
+        pass_filenames: false
+        args: ["src"]

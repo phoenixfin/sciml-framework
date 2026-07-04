@@ -42,7 +42,6 @@ def main():
     ap.add_argument("--nt", type=int, default=1000)
     args = ap.parse_args()
 
-    import tensorflow as tf
     from tensorflow import keras
 
     print("Generating Burgers dataset (this runs the spectral solver)...")

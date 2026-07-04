@@ -1,8 +1,8 @@
 import numpy as np
 
 from sciml.problems.swe.cases import b_flat, h0_gaussian
+from sciml.solvers.compartmental import rk4_integrate, simulate_compartmental
 from sciml.solvers.swe_lax_friedrichs import lax_friedrichs_swe
-from sciml.solvers.compartmental import simulate_compartmental, rk4_integrate
 from sciml.solvers.wave_fdm import wave_moving_boundary_fdm
 
 

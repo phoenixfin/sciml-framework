@@ -2,8 +2,8 @@ import json
 
 import pytest
 
-from sciml.problems.swe.config import SWEConfig, TrainConfig
 from sciml.problems.epidemiology.config import EpiConfig
+from sciml.problems.swe.config import SWEConfig, TrainConfig
 from sciml.problems.wave_obstacle.config import WaveObstacleConfig
 
 

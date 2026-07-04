@@ -9,9 +9,27 @@ description = "A scientific-machine-learning research framework: DeepONet, PINN 
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
-authors = [{ name = "sciml contributors" }]
+authors = [{ name = "Aditya Firman Ihsan" }, { name = "sciml contributors" }]
 keywords = ["scientific-machine-learning", "deeponet", "pinn", "sindy",
             "operator-learning", "physics-informed", "system-identification", "pde"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+Homepage = "https://github.com/phoenixfin/sciml-framework"
+Repository = "https://github.com/phoenixfin/sciml-framework"
+Documentation = "https://github.com/phoenixfin/sciml-framework/tree/main/docs"
+Issues = "https://github.com/phoenixfin/sciml-framework/issues"
 
 # Core is pure-numpy / pandas so the shared utilities, solvers, SINDy core and
 # data tooling import without a deep-learning backend. Heavier method
@@ -32,7 +50,8 @@ neuralode = ["tensorflow>=2.12,<2.17"]
 # LASSO regression and spreadsheet loading.
 sindy = ["scikit-learn>=1.1", "pandas>=1.5", "openpyxl>=3.0"]
 yaml = ["pyyaml>=6.0"]
-dev = ["pytest>=7.0", "pyyaml>=6.0", "interrogate>=1.5", "pydocstyle>=6.0", "pydoclint>=0.4"]
+dev = ["pytest>=7.0", "pyyaml>=6.0", "interrogate>=1.5", "pydocstyle>=6.0",
+       "pydoclint>=0.4", "ruff>=0.4", "pre-commit>=3.0"]
 docs = ["pdoc>=14.0"]
 all = [
     "tensorflow>=2.12,<2.17", "scipy>=1.9",
@@ -48,6 +67,22 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 sciml = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+# Pyflakes (F), pycodestyle errors/warnings (E/W), import sorting (I).
+# Deliberately NOT enabling pyupgrade (UP) — it would rewrite typing.List/Optional
+# in signatures and break the docstring<->signature type matching pydoclint enforces.
+select = ["E", "F", "W", "I"]
+# E741: ``I`` is the standard symbol for the infected compartment.
+# E702/E731: terse multi-statement lines and small lambdas are an intentional style.
+ignore = ["E741", "E702", "E731"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]   # re-exports are the public API
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

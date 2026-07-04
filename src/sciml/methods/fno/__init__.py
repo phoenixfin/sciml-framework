@@ -10,8 +10,8 @@ efficient for smooth PDE solution operators.
 2D:  :class:`SpectralConv2D`, :class:`FNOBlock2D`, :func:`build_fno2d`
 """
 
+from .model import FNOBlock, FNOBlock2D, build_fno1d, build_fno2d
 from .spectral import SpectralConv1D, SpectralConv2D
-from .model import FNOBlock, build_fno1d, FNOBlock2D, build_fno2d
 
 __all__ = ["SpectralConv1D", "FNOBlock", "build_fno1d",
            "SpectralConv2D", "FNOBlock2D", "build_fno2d"]

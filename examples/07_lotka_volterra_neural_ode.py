@@ -25,6 +25,7 @@ def main():
     args = ap.parse_args()
 
     import tensorflow as tf
+
     from sciml.methods.neuralode import NeuralODE, build_odefunc
 
     # One trajectory, lightly subsampled to keep integration cheap.
