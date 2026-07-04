@@ -25,12 +25,6 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
-[project.urls]
-Homepage = "https://github.com/phoenixfin/sciml-framework"
-Repository = "https://github.com/phoenixfin/sciml-framework"
-Documentation = "https://github.com/phoenixfin/sciml-framework/tree/main/docs"
-Issues = "https://github.com/phoenixfin/sciml-framework/issues"
-
 # Core is pure-numpy / pandas so the shared utilities, solvers, SINDy core and
 # data tooling import without a deep-learning backend. Heavier method
 # dependencies are optional extras.
@@ -38,6 +32,12 @@ dependencies = [
     "numpy>=1.23",
     "matplotlib>=3.5",
 ]
+
+[project.urls]
+Homepage = "https://github.com/phoenixfin/sciml-framework"
+Repository = "https://github.com/phoenixfin/sciml-framework"
+Documentation = "https://github.com/phoenixfin/sciml-framework/tree/main/docs"
+Issues = "https://github.com/phoenixfin/sciml-framework/issues"
 
 [project.optional-dependencies]
 # Neural methods (DeepONet, PINN, FNO, Neural ODE) need TensorFlow;
