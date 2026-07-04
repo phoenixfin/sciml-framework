@@ -24,7 +24,7 @@ surrogate that generalizes across inputs at arbitrary query points.
 ```python
 from sciml.methods.deeponet import DeepONetOperator, DeepONet, Trainer, make_optimizer
 
-op = DeepONetOperator.build(n_sensors=100, n_branches=2, coord_dim=2,
+op = DeepONetOperator.create(n_sensors=100, n_branches=2, coord_dim=2,
                             width=64, hidden=[128,128,128])
 beta  = op.coefficients([h0_sensors, b_sensors])   # (B, P)
 field = op([h0_sensors, b_sensors], query_xy)      # (B, N)

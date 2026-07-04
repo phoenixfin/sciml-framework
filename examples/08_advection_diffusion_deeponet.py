@@ -44,7 +44,7 @@ def main():
     U0tr, Ytr = tf.constant(u0[:ntr]), tf.constant(uT[:ntr])
     U0te, Yte = u0[ntr:], uT[ntr:]
 
-    model = DeepONet.build(n_sensors=args.grid, coord_dim=1, width=64,
+    model = DeepONet.create(n_sensors=args.grid, coord_dim=1, width=64,
                            hidden=[128, 128, 128])
     opt = tf.keras.optimizers.Adam(1e-3)
 

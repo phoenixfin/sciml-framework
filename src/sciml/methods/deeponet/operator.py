@@ -91,10 +91,10 @@ class DeepONetOperator(tf.keras.Model):
         return out
 
     @classmethod
-    def build(cls, *, n_sensors: int, n_branches: int, coord_dim: int,
-              width: int, hidden: Sequence[int], out_std: float = 0.1,
-              use_bias: bool = False, name: str = "deeponet_operator"
-              ) -> "DeepONetOperator":
+    def create(cls, *, n_sensors: int, n_branches: int, coord_dim: int,
+               width: int, hidden: Sequence[int], out_std: float = 0.1,
+               use_bias: bool = False, name: str = "deeponet_operator"
+               ) -> "DeepONetOperator":
         """Construct an operator from scalar hyper-parameters (``n_branches`` MLPs + trunk).
 
         Parameters
@@ -131,9 +131,9 @@ class DeepONet(DeepONetOperator):
     """Standard single-input-function DeepONet (one branch, one trunk)."""
 
     @classmethod
-    def build(cls, *, n_sensors: int, coord_dim: int, width: int,
-              hidden: Sequence[int], out_std: float = 0.1, use_bias: bool = True,
-              name: str = "deeponet") -> "DeepONet":
+    def create(cls, *, n_sensors: int, coord_dim: int, width: int,
+               hidden: Sequence[int], out_std: float = 0.1, use_bias: bool = True,
+               name: str = "deeponet") -> "DeepONet":
         """Construct a single-branch DeepONet from scalar hyper-parameters.
 
         Parameters

@@ -9,7 +9,7 @@ tf = pytest.importorskip("tensorflow")
 # ---- DeepONet --------------------------------------------------------------
 def test_deeponet_operator_shapes():
     from sciml.methods.deeponet.operator import DeepONetOperator
-    op = DeepONetOperator.build(n_sensors=20, n_branches=2, coord_dim=2,
+    op = DeepONetOperator.create(n_sensors=20, n_branches=2, coord_dim=2,
                                 width=8, hidden=[16, 16])
     out = op([tf.random.normal((3, 20)), tf.random.normal((3, 20))], tf.random.normal((7, 2)))
     assert out.shape == (3, 7)
