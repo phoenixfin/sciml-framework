@@ -16,6 +16,18 @@ def solve_darcy_2d(a: np.ndarray, f: np.ndarray) -> np.ndarray:
 
     ``a``, ``f`` are ``(m, m)`` node arrays on ``[0,1]^2``. Returns ``u`` ``(m, m)``
     with zeros on the boundary.
+
+    Parameters
+    ----------
+    a : np.ndarray
+        Permeability field of shape ``(m, m)`` on ``[0,1]^2``.
+    f : np.ndarray
+        Forcing field of shape ``(m, m)`` on ``[0,1]^2``.
+
+    Returns
+    -------
+    np.ndarray
+        Pressure field ``u`` of shape ``(m, m)`` with zeros on the boundary.
     """
     a = np.asarray(a, dtype=float)
     f = np.asarray(f, dtype=float)
@@ -51,7 +63,27 @@ def solve_darcy_2d(a: np.ndarray, f: np.ndarray) -> np.ndarray:
 def sample_permeability(m: int, n: int, rng: np.random.Generator,
                         length_scale: float = 0.15, log_amp: float = 1.0) -> np.ndarray:
     """Sample ``n`` smooth positive permeability fields ``(n, m, m)`` via a
-    Fourier-filtered Gaussian random field exponentiated to stay positive."""
+    Fourier-filtered Gaussian random field exponentiated to stay positive.
+
+    Parameters
+    ----------
+    m : int
+        Grid resolution (fields are ``m x m``).
+    n : int
+        Number of fields to sample.
+    rng : np.random.Generator
+        Random generator used to draw the underlying Gaussian noise.
+    length_scale : float
+        Correlation length scale of the Gaussian random field.
+    log_amp : float
+        Amplitude applied in log-space before exponentiating.
+
+    Returns
+    -------
+    np.ndarray
+        Batch of positive permeability fields with shape ``(n, m, m)`` as
+        ``float32``.
+    """
     kx = np.fft.fftfreq(m)[:, None] * m
     ky = np.fft.fftfreq(m)[None, :] * m
     k2 = kx**2 + ky**2
@@ -66,7 +98,20 @@ def sample_permeability(m: int, n: int, rng: np.random.Generator,
 
 
 def darcy_dataset(a_batch: np.ndarray, f_const: float = 1.0) -> np.ndarray:
-    """Solve Darcy for a batch of permeability fields ``(n, m, m) -> (n, m, m)``."""
+    """Solve Darcy for a batch of permeability fields ``(n, m, m) -> (n, m, m)``.
+
+    Parameters
+    ----------
+    a_batch : np.ndarray
+        Batch of permeability fields with shape ``(n, m, m)``.
+    f_const : float
+        Constant forcing value applied uniformly over the domain.
+
+    Returns
+    -------
+    np.ndarray
+        Batch of pressure fields with shape ``(n, m, m)`` as ``float32``.
+    """
     m = a_batch.shape[1]
     f = np.full((m, m), f_const)
     return np.stack([solve_darcy_2d(a_batch[i], f)

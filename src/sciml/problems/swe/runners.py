@@ -23,7 +23,20 @@ _log = get_logger(__name__)
 
 
 def prepare_problem(cfg: SWEConfig, *, verbose: bool = True) -> SWEProblem:
-    """Build a problem, its GP pool and supervised dataset from a config."""
+    """Build a problem, its GP pool and supervised dataset from a config.
+
+    Parameters
+    ----------
+    cfg : SWEConfig
+        The SWE configuration.
+    verbose : bool
+        Whether to log progress information.
+
+    Returns
+    -------
+    SWEProblem
+        The prepared problem with its dataset generated.
+    """
     prob = SWEProblem(cfg)
     prob.prepare(seed=cfg.train.seed)
     if verbose:
@@ -39,7 +52,28 @@ def _optimizer(cfg: SWEConfig):
 def train(cfg: SWEConfig, prob: Optional[SWEProblem] = None, *, variant: str = "full",
           ckpt_dir: Optional[str] = None, weights_path: Optional[str] = None,
           verbose: bool = True) -> Tuple[object, object, SWEProblem]:
-    """Train a model (optionally saving weights). Returns ``(model, history, problem)``."""
+    """Train a model (optionally saving weights). Returns ``(model, history, problem)``.
+
+    Parameters
+    ----------
+    cfg : SWEConfig
+        The SWE configuration.
+    prob : Optional[SWEProblem]
+        A prepared problem to reuse; a new one is built if ``None``.
+    variant : str
+        Model variant key to train.
+    ckpt_dir : Optional[str]
+        Directory for training checkpoints; disabled if ``None``.
+    weights_path : Optional[str]
+        Path to save the final weights; not saved if ``None``.
+    verbose : bool
+        Whether to log progress information.
+
+    Returns
+    -------
+    Tuple[object, object, SWEProblem]
+        The trained model, the training history and the problem instance.
+    """
     seed_everything(cfg.train.seed)
     prob = prob or prepare_problem(cfg, verbose=verbose)
     model = prob.build_model(variant)
@@ -59,9 +93,26 @@ def train(cfg: SWEConfig, prob: Optional[SWEProblem] = None, *, variant: str = "
     return model, history, prob
 
 
-def evaluate_cases(prob: SWEProblem, model, out_dir: str = "outputs/swe",
+def evaluate_cases(prob: SWEProblem, model: tf.keras.Model, out_dir: str = "outputs/swe",
                    verbose: bool = True) -> Dict[str, Dict[str, float]]:
-    """Evaluate cases C1/C2/C3, save per-case figures, and return their errors."""
+    """Evaluate cases C1/C2/C3, save per-case figures, and return their errors.
+
+    Parameters
+    ----------
+    prob : SWEProblem
+        The prepared problem providing predictions and references.
+    model : tf.keras.Model
+        The trained model to evaluate.
+    out_dir : str
+        Directory in which to save the per-case figures.
+    verbose : bool
+        Whether to log per-case errors.
+
+    Returns
+    -------
+    Dict[str, Dict[str, float]]
+        Per-case relative L2 errors and descriptions keyed by case name.
+    """
     set_paper_style()
     os.makedirs(out_dir, exist_ok=True)
     results: Dict[str, Dict[str, float]] = {}
@@ -77,10 +128,31 @@ def evaluate_cases(prob: SWEProblem, model, out_dir: str = "outputs/swe",
     return results
 
 
-def generalization(prob: SWEProblem, model, n_test: Optional[int] = None,
+def generalization(prob: SWEProblem, model: tf.keras.Model, n_test: Optional[int] = None,
                    out_dir: str = "outputs/swe", seed: int = 0,
                    verbose: bool = True) -> Dict[str, float]:
-    """Operator generalization over ``n_test`` unseen periodic pairs (case C4)."""
+    """Operator generalization over ``n_test`` unseen periodic pairs (case C4).
+
+    Parameters
+    ----------
+    prob : SWEProblem
+        The prepared problem providing predictions and references.
+    model : tf.keras.Model
+        The trained model to evaluate.
+    n_test : Optional[int]
+        Number of unseen pairs to test; config default if ``None``.
+    out_dir : str
+        Directory in which to save the histogram figure.
+    seed : int
+        Random seed for sampling the test pairs.
+    verbose : bool
+        Whether to log summary metrics.
+
+    Returns
+    -------
+    Dict[str, float]
+        Mean/median/p90 relative L2 errors for ``h`` and ``hu``.
+    """
     n_test = n_test if n_test is not None else prob.config.data.n_test
     np.random.seed(seed)
     H0_test = prob.h0_sampler.sample(prob.x_sensors, n_test)
@@ -122,5 +194,17 @@ def _generalization_fig(errs_h, errs_hu, out_dir):
 
 
 def save_results(results: Dict, path: str) -> None:
-    """Write a results dict to ``path`` as JSON."""
+    """Write a results dict to ``path`` as JSON.
+
+    Parameters
+    ----------
+    results : Dict
+        The results dictionary to serialize.
+    path : str
+        Destination file path.
+
+    Returns
+    -------
+    None
+    """
     save_json(results, path)

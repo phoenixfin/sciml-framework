@@ -60,7 +60,13 @@ class PhaseConfig(ConfigBase):
 
 
 def _default_phases() -> List[PhaseConfig]:
-    """The five-phase Adam schedule from the v4 notebook."""
+    """The five-phase Adam schedule from the v4 notebook.
+
+    Returns
+    -------
+    List[PhaseConfig]
+        The default list of Adam training phases.
+    """
     return [
         PhaseConfig("1a", 3000, 1e-3, 5.0, 2.0, 0),
         PhaseConfig("1b", 3000, 1e-3, 2.0, 0.5, 0),

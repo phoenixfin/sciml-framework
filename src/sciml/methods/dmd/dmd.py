@@ -10,18 +10,22 @@ import numpy as np
 class DMD:
     """Exact DMD on a snapshot matrix.
 
-    Parameters
-    ----------
-    rank : SVD truncation rank ``r`` (None keeps all non-negligible singular
-        values). Truncation is the main regularizer / denoiser.
-    tol : relative singular-value tolerance used when ``rank`` is None.
-
     After :meth:`fit`, exposes ``eigenvalues`` (discrete), ``omega``
     (continuous growth/frequency = ``log(eig)/dt``), ``modes`` (spatial DMD
     modes Phi), and ``amplitudes`` (b).
     """
 
     def __init__(self, rank: Optional[int] = None, tol: float = 1e-10):
+        """Store the SVD truncation rank and singular-value tolerance.
+
+        Parameters
+        ----------
+        rank : Optional[int]
+            SVD truncation rank ``r`` (None keeps all non-negligible singular
+            values).
+        tol : float
+            Relative singular-value tolerance used when ``rank`` is None.
+        """
         self.rank = rank
         self.tol = tol
         self.eigenvalues = None
@@ -32,7 +36,25 @@ class DMD:
         self._x0 = None
 
     def fit(self, X: np.ndarray, dt: float = 1.0) -> "DMD":
-        """Fit on snapshots ``X`` of shape ``(n_features, n_time)``."""
+        """Fit on snapshots ``X`` of shape ``(n_features, n_time)``.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Snapshot matrix of shape ``(n_features, n_time)``.
+        dt : float
+            Time step between successive snapshots.
+
+        Returns
+        -------
+        DMD
+            The fitted estimator (``self``).
+
+        Raises
+        ------
+        ValueError
+            If ``X`` is not 2D with at least two time snapshots.
+        """
         X = np.asarray(X, dtype=float)
         if X.ndim != 2 or X.shape[1] < 2:
             raise ValueError("X must be (n_features, n_time) with n_time >= 2")
@@ -62,11 +84,33 @@ class DMD:
 
     @property
     def frequencies(self) -> np.ndarray:
-        """Oscillation frequencies in Hz-like units (imag(omega) / 2 pi)."""
+        """Oscillation frequencies in Hz-like units (imag(omega) / 2 pi).
+
+        Returns
+        -------
+        np.ndarray
+            The oscillation frequencies of each mode.
+        """
         return self.omega.imag / (2 * np.pi)
 
     def predict(self, t: np.ndarray) -> np.ndarray:
-        """Reconstruct the (real) state at times ``t`` -> ``(n_features, len(t))``."""
+        """Reconstruct the (real) state at times ``t`` -> ``(n_features, len(t))``.
+
+        Parameters
+        ----------
+        t : np.ndarray
+            Times at which to reconstruct the state.
+
+        Returns
+        -------
+        np.ndarray
+            The reconstructed real state of shape ``(n_features, len(t))``.
+
+        Raises
+        ------
+        RuntimeError
+            If called before :meth:`fit`.
+        """
         if self.modes is None:
             raise RuntimeError("Call fit() before predict().")
         t = np.asarray(t, dtype=float)
@@ -74,5 +118,16 @@ class DMD:
         return (self.modes @ dynamics).real
 
     def reconstruct(self, n_time: int) -> np.ndarray:
-        """Reconstruct the training window of ``n_time`` snapshots."""
+        """Reconstruct the training window of ``n_time`` snapshots.
+
+        Parameters
+        ----------
+        n_time : int
+            Number of consecutive snapshots to reconstruct.
+
+        Returns
+        -------
+        np.ndarray
+            The reconstructed real state of shape ``(n_features, n_time)``.
+        """
         return self.predict(np.arange(n_time) * self._dt)

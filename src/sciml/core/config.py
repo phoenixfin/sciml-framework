@@ -19,17 +19,37 @@ T = TypeVar("T", bound="ConfigBase")
 
 
 class ConfigBase:
-    """Mixin adding (de)serialization to dataclasses."""
+    """Mixin adding dict/JSON/YAML (de)serialization to config dataclasses."""
 
     def to_dict(self) -> Dict[str, Any]:
-        """Recursively convert the dataclass to a plain (JSON-ready) dict."""
+        """Recursively convert the dataclass to a plain (JSON-ready) dict.
+
+        Returns
+        -------
+        dict
+            Nested plain-Python representation of the config.
+        """
         return asdict(self)  # type: ignore[arg-type]
 
     @classmethod
     def from_dict(cls: Type[T], d: Dict[str, Any]) -> T:
         """Build the (possibly nested) dataclass from a plain dict.
 
-        Unknown keys raise ``TypeError`` so config-file typos surface early.
+        Parameters
+        ----------
+        d : Dict[str, Any]
+            Mapping of field names to values; nested configs and lists of
+            configs are coerced recursively.
+
+        Returns
+        -------
+        ConfigBase
+            An instance of ``cls``.
+
+        Raises
+        ------
+        TypeError
+            If ``d`` contains a key that is not a field of ``cls``.
         """
         # ``from __future__ import annotations`` makes field types strings, so
         # resolve them via get_type_hints (evaluated in the dataclass's module).
@@ -45,7 +65,23 @@ class ConfigBase:
     # -- file IO ----------------------------------------------------------
     @classmethod
     def load(cls: Type[T], path: str | Path) -> T:
-        """Load a config from a ``.yaml``/``.yml`` or ``.json`` file."""
+        """Load a config from a ``.yaml``/``.yml`` or ``.json`` file.
+
+        Parameters
+        ----------
+        path : str | Path
+            Path to the config file; the extension selects the format.
+
+        Returns
+        -------
+        ConfigBase
+            An instance of ``cls``.
+
+        Raises
+        ------
+        ValueError
+            If the file extension is not supported.
+        """
         path = Path(path)
         text = path.read_text(encoding="utf-8")
         if path.suffix.lower() in {".yaml", ".yml"}:
@@ -57,7 +93,18 @@ class ConfigBase:
         return cls.from_dict(d or {})
 
     def save(self, path: str | Path) -> None:
-        """Write the config to a ``.yaml``/``.yml`` or ``.json`` file."""
+        """Write the config to a ``.yaml``/``.yml`` or ``.json`` file.
+
+        Parameters
+        ----------
+        path : str | Path
+            Destination path; the extension selects the format (JSON for any
+            non-YAML suffix).
+
+        Returns
+        -------
+        None
+        """
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.suffix.lower() in {".yaml", ".yml"}:
@@ -67,8 +114,20 @@ class ConfigBase:
 
 
 def _coerce(ftype: Any, value: Any) -> Any:
-    """Recursively coerce ``value`` into ``ftype`` for nested configs and
-    ``List[SomeConfig]`` fields; pass everything else through unchanged."""
+    """Coerce a raw value into a nested config or list-of-configs when appropriate.
+
+    Parameters
+    ----------
+    ftype : Any
+        The resolved type annotation of the target field.
+    value : Any
+        The raw value from the input dict.
+
+    Returns
+    -------
+    Any
+        ``value`` converted to the nested config type(s), or unchanged.
+    """
     if isinstance(value, dict) and isinstance(ftype, type) and issubclass(ftype, ConfigBase):
         return ftype.from_dict(value)
     origin = typing.get_origin(ftype)
@@ -83,11 +142,28 @@ def _coerce(ftype: Any, value: Any) -> Any:
 class DomainConfig(ConfigBase):
     """A spatio-temporal box ``[0, length] x [0, t_final]``."""
 
-    length: float = 10.0
-    t_final: float = 1.0
+    length: float = 10.0    #: spatial domain length
+    t_final: float = 1.0    #: final time
 
 
 def _load_yaml(text: str) -> Dict[str, Any]:
+    """Parse YAML ``text`` into a dict (requires PyYAML).
+
+    Parameters
+    ----------
+    text : str
+        YAML document text.
+
+    Returns
+    -------
+    dict
+        The parsed mapping.
+
+    Raises
+    ------
+    ImportError
+        If PyYAML is not installed.
+    """
     try:
         import yaml  # type: ignore
     except ImportError as exc:  # pragma: no cover
@@ -98,6 +174,23 @@ def _load_yaml(text: str) -> Dict[str, Any]:
 
 
 def _dump_yaml(d: Dict[str, Any]) -> str:
+    """Serialize a dict to YAML text (requires PyYAML).
+
+    Parameters
+    ----------
+    d : Dict[str, Any]
+        The mapping to serialize.
+
+    Returns
+    -------
+    str
+        YAML document text.
+
+    Raises
+    ------
+    ImportError
+        If PyYAML is not installed.
+    """
     try:
         import yaml  # type: ignore
     except ImportError as exc:  # pragma: no cover

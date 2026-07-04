@@ -29,6 +29,31 @@ def wave_moving_boundary_fdm(
 
     Returns a dict with keys ``t`` (times), ``s`` (contact point),
     ``xbar`` (list of physical grids) and ``u`` (list of displacement fields).
+
+    Parameters
+    ----------
+    s_analytic : Callable[[np.ndarray], np.ndarray]
+        Analytic contact-point trajectory ``s(tau)``, evaluated on arrays.
+    u_stationary : Callable[[np.ndarray], np.ndarray]
+        Stationary displacement solution ``u(xbar)``, evaluated on arrays.
+    s_y : float
+        Slope parameter of the moving boundary used in the effective wave speed.
+    delta : float
+        Amplitude of the initial displacement bump.
+    t_final : float
+        Final integration time.
+    nx : int
+        Number of spatial intervals on the reference grid.
+    cfl : float
+        Courant-Friedrichs-Lewy number controlling the time step.
+    n_snaps : int
+        Maximum number of snapshots to store.
+
+    Returns
+    -------
+    Dict[str, List]
+        Dictionary with keys ``t`` (times), ``s`` (contact point), ``xbar``
+        (physical grids) and ``u`` (displacement fields).
     """
     c_eff = 1.0 / (1.0 - s_y)
     dx = 1.0 / nx

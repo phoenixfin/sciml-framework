@@ -20,7 +20,22 @@ _log = get_logger(__name__)
 
 def run(cfg: Optional[EpiConfig] = None, *, out_dir: Optional[str] = None,
         verbose: bool = True) -> Dict:
-    """Run the full pipeline (load/simulate -> reconstruct -> estimate -> plot/save)."""
+    """Run the full pipeline (load/simulate -> reconstruct -> estimate -> plot/save).
+
+    Parameters
+    ----------
+    cfg : Optional[EpiConfig]
+        Configuration; a default :class:`EpiConfig` is used if ``None``.
+    out_dir : Optional[str]
+        Output directory; defaults to the config's ``output_dir`` if ``None``.
+    verbose : bool
+        Whether to log progress and summary information.
+
+    Returns
+    -------
+    Dict
+        A dictionary with the ``"summary"`` metrics and the estimator ``"results"``.
+    """
     cfg = cfg or EpiConfig()
     seed_everything(cfg.seed, tensorflow=False)
     out_dir = out_dir or cfg.output_dir

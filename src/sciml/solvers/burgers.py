@@ -13,7 +13,26 @@ import numpy as np
 
 def burgers_solution(u0: np.ndarray, nu: float = 0.01, t_final: float = 1.0,
                      length: float = 1.0, nt: int = 2000) -> np.ndarray:
-    """Integrate periodic Burgers from IC ``u0`` to ``t_final``. Returns the field."""
+    """Integrate periodic Burgers from IC ``u0`` to ``t_final``. Returns the field.
+
+    Parameters
+    ----------
+    u0 : np.ndarray
+        Initial condition sampled on the periodic grid.
+    nu : float
+        Kinematic viscosity coefficient.
+    t_final : float
+        Final integration time.
+    length : float
+        Length of the periodic spatial domain.
+    nt : int
+        Number of RK4 time steps.
+
+    Returns
+    -------
+    np.ndarray
+        The field ``u(., t_final)`` on the same grid as ``u0``.
+    """
     u0 = np.asarray(u0, dtype=float)
     n = len(u0)
     k = 2 * np.pi * np.fft.fftfreq(n, d=length / n)
@@ -41,6 +60,25 @@ def burgers_solution(u0: np.ndarray, nu: float = 0.01, t_final: float = 1.0,
 
 def burgers_dataset(u0_batch: np.ndarray, nu: float = 0.01, t_final: float = 1.0,
                     length: float = 1.0, nt: int = 2000) -> np.ndarray:
-    """Apply :func:`burgers_solution` to a batch of ICs ``(n, grid) -> (n, grid)``."""
+    """Apply :func:`burgers_solution` to a batch of ICs ``(n, grid) -> (n, grid)``.
+
+    Parameters
+    ----------
+    u0_batch : np.ndarray
+        Batch of initial conditions with shape ``(n, grid)``.
+    nu : float
+        Kinematic viscosity coefficient.
+    t_final : float
+        Final integration time.
+    length : float
+        Length of the periodic spatial domain.
+    nt : int
+        Number of RK4 time steps.
+
+    Returns
+    -------
+    np.ndarray
+        Batch of final fields with shape ``(n, grid)`` as ``float32``.
+    """
     return np.stack([burgers_solution(u0_batch[i], nu, t_final, length, nt)
                      for i in range(len(u0_batch))]).astype(np.float32)

@@ -32,6 +32,34 @@ def lax_friedrichs_swe(
     Returns ``(x, snaps)`` with ``snaps`` keyed by ``"t"``, ``"h"``, ``"hu"``.
     The ``captured`` set prevents duplicate snapshots within the ``1.5*dt``
     capture window.
+
+    Parameters
+    ----------
+    h0_fn : Callable[[np.ndarray], np.ndarray]
+        Initial water depth profile ``h0(x)``, evaluated on arrays.
+    b_fn : Callable[[np.ndarray], np.ndarray]
+        Bathymetry profile ``b(x)``, evaluated on arrays.
+    length : float
+        Length of the periodic spatial domain.
+    t_final : float
+        Final integration time.
+    gravity : float
+        Gravitational acceleration.
+    nx : int
+        Number of spatial cells.
+    nt : int
+        Number of time steps.
+    t_out : Optional[Sequence[float]]
+        Times at which to capture snapshots; defaults to quarter fractions of
+        ``t_final`` when ``None``.
+    eps : float
+        Small floor added to depth to avoid division by zero.
+
+    Returns
+    -------
+    Tuple[np.ndarray, Dict[str, List]]
+        The cell-center grid ``x`` and a snapshot dictionary keyed by ``"t"``,
+        ``"h"`` and ``"hu"``.
     """
     if t_out is None:
         t_out = [0.25 * t_final, 0.5 * t_final, 0.75 * t_final, t_final]

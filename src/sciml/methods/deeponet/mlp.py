@@ -13,6 +13,26 @@ def make_mlp(in_dim: int, hidden: Sequence[int], out_dim: int, name: str,
 
     A small output init keeps the operator near zero at the start of training,
     which stabilizes physics-informed setups.
+
+    Parameters
+    ----------
+    in_dim : int
+        Input dimension of the network.
+    hidden : Sequence[int]
+        Widths of the hidden layers.
+    out_dim : int
+        Output dimension of the network.
+    name : str
+        Name assigned to the constructed Keras model.
+    activation : str
+        Activation function used in the hidden layers.
+    out_std : float
+        Standard deviation of the truncated-normal output-layer initializer.
+
+    Returns
+    -------
+    tf.keras.Model
+        The constructed fully-connected MLP.
     """
     inp = tf.keras.Input(shape=(in_dim,))
     x = inp

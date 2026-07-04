@@ -32,7 +32,7 @@ neuralode = ["tensorflow>=2.12,<2.17"]
 # LASSO regression and spreadsheet loading.
 sindy = ["scikit-learn>=1.1", "pandas>=1.5", "openpyxl>=3.0"]
 yaml = ["pyyaml>=6.0"]
-dev = ["pytest>=7.0", "pyyaml>=6.0", "interrogate>=1.5", "pydocstyle>=6.0"]
+dev = ["pytest>=7.0", "pyyaml>=6.0", "interrogate>=1.5", "pydocstyle>=6.0", "pydoclint>=0.4"]
 docs = ["pdoc>=14.0"]
 all = [
     "tensorflow>=2.12,<2.17", "scipy>=1.9",
@@ -67,3 +67,15 @@ exclude = ["experiments", "examples", "tests"]
 # PEP 257 style; relax a few conventions that don't fit terse research code.
 convention = "pep257"
 add-ignore = "D105,D107,D203,D212,D401,D413"
+
+[tool.pydoclint]
+# NumPy-style docstrings: every parameter and return must be documented.
+# Types live in the signatures (not duplicated in docstrings); dataclass
+# attributes are documented with inline `#:` comments, not an Attributes block.
+style = "numpy"
+arg-type-hints-in-docstring = true
+check-return-types = false
+check-yield-types = false
+check-class-attributes = false
+skip-checking-short-docstrings = false
+allow-init-docstring = true

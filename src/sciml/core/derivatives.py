@@ -14,6 +14,22 @@ import numpy as np
 
 
 def _odd_window(window: int, n: int, poly: int) -> int:
+    """Clamp ``window`` to an odd value valid for a length-``n`` series and degree ``poly``.
+
+    Parameters
+    ----------
+    window : int
+        Requested window length.
+    n : int
+        Length of the signal.
+    poly : int
+        Polynomial degree; the window must exceed it.
+
+    Returns
+    -------
+    int
+        A valid odd window length.
+    """
     window = int(window)
     if window % 2 == 0:
         window += 1
@@ -25,8 +41,26 @@ def _odd_window(window: int, n: int, poly: int) -> int:
 
 
 def _coeffs(window: int, poly: int, deriv: int, delta: float, pos: int) -> np.ndarray:
-    """Convolution coefficients giving the ``deriv``-th derivative of the local
-    polynomial fit, evaluated at index ``pos`` within the window."""
+    """Convolution coefficients for the local-polynomial derivative at one position.
+
+    Parameters
+    ----------
+    window : int
+        Window length.
+    poly : int
+        Polynomial degree fit within the window.
+    deriv : int
+        Derivative order to evaluate.
+    delta : float
+        Sample spacing (sets the derivative scale).
+    pos : int
+        Index within the window at which the derivative is evaluated.
+
+    Returns
+    -------
+    np.ndarray
+        Length-``window`` coefficient vector to convolve with the samples.
+    """
     x = np.arange(window) - pos
     A = x[:, None] ** np.arange(poly + 1)[None, :]      # Vandermonde (window, poly+1)
     pinv = np.linalg.pinv(A)                            # (poly+1, window)
@@ -34,6 +68,26 @@ def _coeffs(window: int, poly: int, deriv: int, delta: float, pos: int) -> np.nd
 
 
 def _savgol(y: np.ndarray, window: int, poly: int, deriv: int, delta: float) -> np.ndarray:
+    """Apply a Savitzky-Golay filter of the given derivative order.
+
+    Parameters
+    ----------
+    y : np.ndarray
+        Input signal (1D).
+    window : int
+        Window length (clamped to a valid odd value internally).
+    poly : int
+        Polynomial degree.
+    deriv : int
+        Derivative order (0 = smoothing).
+    delta : float
+        Sample spacing.
+
+    Returns
+    -------
+    np.ndarray
+        The filtered signal, same length as ``y``.
+    """
     y = np.asarray(y, dtype=float)
     n = len(y)
     if n == 0:
@@ -58,7 +112,22 @@ def _savgol(y: np.ndarray, window: int, poly: int, deriv: int, delta: float) -> 
 
 
 def savgol(y: np.ndarray, window: int = 11, poly: int = 3) -> np.ndarray:
-    """Savitzky-Golay smoothing (0th derivative)."""
+    """Savitzky-Golay smoothing (0th derivative).
+
+    Parameters
+    ----------
+    y : np.ndarray
+        Input signal (1D).
+    window : int
+        Window length (odd; clamped internally).
+    poly : int
+        Polynomial degree.
+
+    Returns
+    -------
+    np.ndarray
+        The smoothed signal, same length as ``y``.
+    """
     return _savgol(y, window, poly, deriv=0, delta=1.0)
 
 
@@ -66,8 +135,22 @@ def savgol_derivative(y: np.ndarray, t: np.ndarray | None = None,
                       window: int = 11, poly: int = 3) -> np.ndarray:
     """Savitzky-Golay first derivative.
 
-    ``t`` may be the (uniformly spaced) sample locations; its spacing sets the
-    finite-difference ``delta``. If ``None``, unit spacing is assumed.
+    Parameters
+    ----------
+    y : np.ndarray
+        Input signal (1D).
+    t : np.ndarray | None
+        Uniformly spaced sample locations; their spacing sets the
+        finite-difference step. Unit spacing is assumed when ``None``.
+    window : int
+        Window length (odd; clamped internally).
+    poly : int
+        Polynomial degree.
+
+    Returns
+    -------
+    np.ndarray
+        The estimated first derivative, same length as ``y``.
     """
     delta = 1.0 if t is None else float(np.mean(np.diff(np.asarray(t, dtype=float))))
     return _savgol(y, window, poly, deriv=1, delta=delta)

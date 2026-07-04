@@ -13,7 +13,7 @@ variants remove one architectural choice each.
 
 from __future__ import annotations
 
-from typing import Sequence
+from typing import Sequence, Tuple
 
 import tensorflow as tf
 
@@ -27,6 +27,25 @@ class SWEDeepONet(tf.keras.Model):
     def __init__(self, *, n_sensors: int = 100, width: int = 64,
                  hidden: Sequence[int] = (128, 128, 128), out_std: float = 0.1,
                  h_min: float = 0.05, eps: float = 1e-4, name: str = "swe_deeponet"):
+        """Build the full SWE DeepONet with separate branch pairs per output field.
+
+        Parameters
+        ----------
+        n_sensors : int
+            Number of sensor points feeding each branch network.
+        width : int
+            Latent width shared by the branch and trunk networks.
+        hidden : Sequence[int]
+            Hidden-layer sizes of the branch and trunk MLPs.
+        out_std : float
+            Output-layer initialization standard deviation for the trunks.
+        h_min : float
+            Minimum depth floor used by the analytic IC shortcut.
+        eps : float
+            Small positive offset added to the predicted depth.
+        name : str
+            Keras model name.
+        """
         super().__init__(name=name)
         hid = list(hidden)
         self.h_op = DeepONetOperator(
@@ -40,8 +59,28 @@ class SWEDeepONet(tf.keras.Model):
         self.h_min = tf.constant(h_min, tf.float32)
         self.eps = tf.constant(eps, tf.float32)
 
-    def call(self, h0s, bs, xt, h0_at_x, b_at_x):
-        """Predict ``(h, hu)`` at query points ``xt`` given sensor and pointwise inputs."""
+    def call(self, h0s: tf.Tensor, bs: tf.Tensor, xt: tf.Tensor, h0_at_x: tf.Tensor,
+             b_at_x: tf.Tensor) -> Tuple:
+        """Predict ``(h, hu)`` at query points ``xt`` given sensor and pointwise inputs.
+
+        Parameters
+        ----------
+        h0s : tf.Tensor
+            Initial-depth sensor values for each sample.
+        bs : tf.Tensor
+            Bathymetry sensor values for each sample.
+        xt : tf.Tensor
+            Query points as ``(x, t)`` pairs.
+        h0_at_x : tf.Tensor
+            Initial depth evaluated at the query x-coordinates.
+        b_at_x : tf.Tensor
+            Bathymetry evaluated at the query x-coordinates.
+
+        Returns
+        -------
+        Tuple
+            The predicted depth ``h`` and momentum ``hu`` tensors.
+        """
         t = tf.transpose(xt[:, 1:2])
         F_h = self.h_op([h0s, bs], xt)
         F_hu = self.hu_op([h0s, bs], xt)
@@ -57,6 +96,25 @@ class SharedBranchSWEDeepONet(tf.keras.Model):
     def __init__(self, *, n_sensors: int = 100, width: int = 64,
                  hidden: Sequence[int] = (128, 128, 128), out_std: float = 0.1,
                  h_min: float = 0.05, eps: float = 1e-4, name: str = "swe_shared"):
+        """Build the shared-branch ablation model.
+
+        Parameters
+        ----------
+        n_sensors : int
+            Number of sensor points feeding each branch network.
+        width : int
+            Latent width shared by the branch and trunk networks.
+        hidden : Sequence[int]
+            Hidden-layer sizes of the branch and trunk MLPs.
+        out_std : float
+            Output-layer initialization standard deviation for the trunks.
+        h_min : float
+            Minimum depth floor used by the analytic IC shortcut.
+        eps : float
+            Small positive offset added to the predicted depth.
+        name : str
+            Keras model name.
+        """
         super().__init__(name=name)
         hid = list(hidden)
         self.b1 = make_mlp(n_sensors, hid, width, "b1_shared")
@@ -66,8 +124,28 @@ class SharedBranchSWEDeepONet(tf.keras.Model):
         self.h_min = tf.constant(h_min, tf.float32)
         self.eps = tf.constant(eps, tf.float32)
 
-    def call(self, h0s, bs, xt, h0_at_x, b_at_x):
-        """Predict ``(h, hu)`` using a single shared branch coefficient for both fields."""
+    def call(self, h0s: tf.Tensor, bs: tf.Tensor, xt: tf.Tensor, h0_at_x: tf.Tensor,
+             b_at_x: tf.Tensor) -> Tuple:
+        """Predict ``(h, hu)`` using a single shared branch coefficient for both fields.
+
+        Parameters
+        ----------
+        h0s : tf.Tensor
+            Initial-depth sensor values for each sample.
+        bs : tf.Tensor
+            Bathymetry sensor values for each sample.
+        xt : tf.Tensor
+            Query points as ``(x, t)`` pairs.
+        h0_at_x : tf.Tensor
+            Initial depth evaluated at the query x-coordinates.
+        b_at_x : tf.Tensor
+            Bathymetry evaluated at the query x-coordinates.
+
+        Returns
+        -------
+        Tuple
+            The predicted depth ``h`` and momentum ``hu`` tensors.
+        """
         t = tf.transpose(xt[:, 1:2])
         beta = self.b1(h0s) + self.b2(bs)
         F_h = tf.linalg.matmul(beta, self.th(xt), transpose_b=True)
@@ -83,7 +161,24 @@ class NoICShortcutSWEDeepONet(tf.keras.Model):
 
     def __init__(self, *, n_sensors: int = 100, width: int = 64,
                  hidden: Sequence[int] = (128, 128, 128), out_std: float = 0.1,
-                 name: str = "swe_noic", **_ignored):
+                 name: str = "swe_noic", **_ignored: object):
+        """Build the no-IC-shortcut ablation model.
+
+        Parameters
+        ----------
+        n_sensors : int
+            Number of sensor points feeding each branch network.
+        width : int
+            Latent width shared by the branch and trunk networks.
+        hidden : Sequence[int]
+            Hidden-layer sizes of the branch and trunk MLPs.
+        out_std : float
+            Output-layer initialization standard deviation for the trunks.
+        name : str
+            Keras model name.
+        **_ignored : object
+            Ignored extra keyword arguments (accepted for interface parity).
+        """
         super().__init__(name=name)
         hid = list(hidden)
         self.h_op = DeepONetOperator(
@@ -95,8 +190,28 @@ class NoICShortcutSWEDeepONet(tf.keras.Model):
              make_mlp(n_sensors, hid, width, "b2hu_noic")],
             make_mlp(2, hid, width, "thu_noic", out_std=out_std), name="hu_op_noic")
 
-    def call(self, h0s, bs, xt, h0_at_x, b_at_x):
-        """Predict ``(h, hu)`` as raw operator outputs (no IC shortcut applied)."""
+    def call(self, h0s: tf.Tensor, bs: tf.Tensor, xt: tf.Tensor, h0_at_x: tf.Tensor,
+             b_at_x: tf.Tensor) -> Tuple:
+        """Predict ``(h, hu)`` as raw operator outputs (no IC shortcut applied).
+
+        Parameters
+        ----------
+        h0s : tf.Tensor
+            Initial-depth sensor values for each sample.
+        bs : tf.Tensor
+            Bathymetry sensor values for each sample.
+        xt : tf.Tensor
+            Query points as ``(x, t)`` pairs.
+        h0_at_x : tf.Tensor
+            Initial depth evaluated at the query x-coordinates (unused here).
+        b_at_x : tf.Tensor
+            Bathymetry evaluated at the query x-coordinates (unused here).
+
+        Returns
+        -------
+        Tuple
+            The predicted depth ``h`` and momentum ``hu`` tensors.
+        """
         return self.h_op([h0s, bs], xt), self.hu_op([h0s, bs], xt)
 
 
@@ -108,7 +223,20 @@ VARIANTS = {
 
 
 def warmup(model: tf.keras.Model, n_sensors: int) -> tf.keras.Model:
-    """Build the model's weights with one dummy forward pass and return it."""
+    """Build the model's weights with one dummy forward pass and return it.
+
+    Parameters
+    ----------
+    model : tf.keras.Model
+        The model whose weights should be materialized.
+    n_sensors : int
+        Number of sensor points, used to shape the dummy inputs.
+
+    Returns
+    -------
+    tf.keras.Model
+        The same model, with its weights now built.
+    """
     d = tf.zeros((2, n_sensors))
     model(d, d, tf.zeros((4, 2)), tf.ones((2, 4)), tf.zeros((2, 4)))
     return model

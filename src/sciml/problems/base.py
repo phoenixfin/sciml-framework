@@ -21,8 +21,28 @@ class Problem(ABC):
     name: str = "problem"
 
     def __init__(self, config: ConfigBase):
+        """Store the problem configuration.
+
+        Parameters
+        ----------
+        config : ConfigBase
+            Configuration object for the problem.
+        """
         self.config = config
 
     @abstractmethod
-    def reference(self, *args, **kwargs) -> Any:
-        """Compute a ground-truth reference solution for evaluation."""
+    def reference(self, *args: Any, **kwargs: Any) -> Any:
+        """Compute a ground-truth reference solution for evaluation.
+
+        Parameters
+        ----------
+        *args : Any
+            Positional arguments specific to each concrete problem.
+        **kwargs : Any
+            Keyword arguments specific to each concrete problem.
+
+        Returns
+        -------
+        Any
+            The reference (ground-truth) solution.
+        """

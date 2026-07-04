@@ -12,16 +12,21 @@ from .sparse import stridge
 
 
 class SINDy:
-    """Fit ``Xdot ~ Theta(X) @ Xi`` with a thresholded-ridge sparse solver.
-
-    Parameters
-    ----------
-    library : a :class:`~sciml.methods.sindy.library.FeatureLibrary`.
-    threshold, alpha : STRidge sparsity threshold and ridge penalty.
-    """
+    """Fit ``Xdot ~ Theta(X) @ Xi`` with a thresholded-ridge sparse solver."""
 
     def __init__(self, library: FeatureLibrary, threshold: float = 0.01,
                  alpha: float = 0.0):
+        """Configure the feature library and STRidge hyper-parameters.
+
+        Parameters
+        ----------
+        library : FeatureLibrary
+            The candidate-term feature library.
+        threshold : float
+            STRidge sparsity threshold.
+        alpha : float
+            Ridge penalty used inside STRidge.
+        """
         self.library = library
         self.threshold = threshold
         self.alpha = alpha
@@ -31,7 +36,24 @@ class SINDy:
     def fit(self, X: np.ndarray, Xdot: Optional[np.ndarray] = None,
             t: Optional[np.ndarray] = None,
             input_names: Optional[Sequence[str]] = None) -> "SINDy":
-        """Fit sparse coefficients ``Xi``; derivatives are estimated if ``Xdot`` is None."""
+        """Fit sparse coefficients ``Xi``; derivatives are estimated if ``Xdot`` is None.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            State data matrix of shape ``(m, d)``.
+        Xdot : Optional[np.ndarray]
+            Time derivatives; estimated from ``X`` and ``t`` if None.
+        t : Optional[np.ndarray]
+            Time points used to estimate derivatives when ``Xdot`` is None.
+        input_names : Optional[Sequence[str]]
+            Names of the ``d`` state variables.
+
+        Returns
+        -------
+        SINDy
+            The fitted estimator (``self``).
+        """
         X = np.atleast_2d(np.asarray(X, dtype=float))
         if Xdot is None:
             # Estimate derivatives column-wise via Savitzky-Golay.
@@ -47,14 +69,48 @@ class SINDy:
         return self
 
     def predict(self, X: np.ndarray) -> np.ndarray:
-        """Predict the derivatives ``Theta(X) @ Xi`` at states ``X``."""
+        """Predict the derivatives ``Theta(X) @ Xi`` at states ``X``.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            State data matrix of shape ``(m, d)``.
+
+        Returns
+        -------
+        np.ndarray
+            The predicted derivatives ``Theta(X) @ Xi``.
+
+        Raises
+        ------
+        RuntimeError
+            If called before :meth:`fit`.
+        """
         if self.coef_ is None:
             raise RuntimeError("Call fit() before predict().")
         return self.library.transform(np.atleast_2d(X)) @ self.coef_
 
     def equations(self, target_names: Optional[Sequence[str]] = None,
                   precision: int = 4) -> List[str]:
-        """Human-readable identified equations (one per target)."""
+        """Human-readable identified equations (one per target).
+
+        Parameters
+        ----------
+        target_names : Optional[Sequence[str]]
+            Left-hand-side names for each target equation.
+        precision : int
+            Number of decimal places used when formatting coefficients.
+
+        Returns
+        -------
+        List[str]
+            One formatted equation string per target.
+
+        Raises
+        ------
+        RuntimeError
+            If called before :meth:`fit`.
+        """
         if self.coef_ is None:
             raise RuntimeError("Call fit() before equations().")
         coef = self.coef_
@@ -77,6 +133,29 @@ def windowed_coefficients(Theta: np.ndarray, y: np.ndarray, t: np.ndarray, *,
 
     Returns ``(centers, coeffs)`` where ``centers`` are the window-midpoint
     times and ``coeffs`` has shape ``(n_windows, n_features)``.
+
+    Parameters
+    ----------
+    Theta : np.ndarray
+        Feature matrix of shape ``(n, n_features)``.
+    y : np.ndarray
+        Target values aligned with the rows of ``Theta``.
+    t : np.ndarray
+        Time points aligned with the rows of ``Theta``.
+    window : int
+        Number of samples per sliding window.
+    step : int
+        Stride between successive windows.
+    threshold : float
+        STRidge sparsity threshold.
+    alpha : float
+        Ridge penalty used inside STRidge.
+
+    Returns
+    -------
+    Tuple[np.ndarray, np.ndarray]
+        The window-midpoint times and the per-window coefficients of shape
+        ``(n_windows, n_features)``.
     """
     Theta = np.atleast_2d(np.asarray(Theta, dtype=float))
     y = np.asarray(y, dtype=float)

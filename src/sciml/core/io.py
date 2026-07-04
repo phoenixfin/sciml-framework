@@ -8,20 +8,59 @@ from typing import Any
 
 
 def save_json(obj: Any, path: str) -> None:
-    """Write ``obj`` to ``path`` as indented JSON, creating parent dirs."""
+    """Write ``obj`` to ``path`` as indented JSON, creating parent directories.
+
+    Parameters
+    ----------
+    obj : Any
+        A JSON-serializable object (numpy scalars/arrays are handled).
+    path : str
+        Destination file path.
+
+    Returns
+    -------
+    None
+    """
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         json.dump(obj, f, indent=2, default=_default)
 
 
 def load_json(path: str) -> Any:
-    """Load and return the JSON object stored at ``path``."""
+    """Load and return the JSON object stored at ``path``.
+
+    Parameters
+    ----------
+    path : str
+        Path to a JSON file.
+
+    Returns
+    -------
+    Any
+        The decoded JSON object.
+    """
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
-def _default(o):
-    # Make numpy scalars/arrays JSON-serializable.
+def _default(o: Any):
+    """Fallback encoder making numpy scalars/arrays JSON-serializable.
+
+    Parameters
+    ----------
+    o : Any
+        The object ``json`` could not serialize natively.
+
+    Returns
+    -------
+    Any
+        A JSON-native representation of ``o``.
+
+    Raises
+    ------
+    TypeError
+        If ``o`` is not a supported numpy type.
+    """
     import numpy as np
     if isinstance(o, (np.integer,)):
         return int(o)

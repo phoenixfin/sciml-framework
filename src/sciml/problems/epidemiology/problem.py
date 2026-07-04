@@ -20,19 +20,43 @@ class EpiProblem(Problem):
     name = "epidemiology"
 
     def __init__(self, config: Optional[EpiConfig] = None):
+        """Initialize the problem with an optional configuration.
+
+        Parameters
+        ----------
+        config : Optional[EpiConfig]
+            Problem configuration; a default :class:`EpiConfig` is used if ``None``.
+        """
         super().__init__(config or EpiConfig())
         self.raw: Optional[Dict] = None
         self.data: Optional[Dict] = None
 
     def beta_true(self) -> Callable[[float], float]:
-        """Return the seasonal ground-truth beta(t) callable (used for simulation)."""
+        """Return the seasonal ground-truth beta(t) callable (used for simulation).
+
+        Returns
+        -------
+        Callable[[float], float]
+            A function mapping time to the true seasonal transmission rate.
+        """
         d = self.config.data
         return lambda t: d.beta_base + d.beta_amp * np.sin(
             2 * np.pi * (np.asarray(t) - d.beta_phase) / d.beta_period)
 
     # -- data -------------------------------------------------------------
     def load_or_simulate(self, *, rng: Optional[np.random.Generator] = None) -> Dict:
-        """Load a real weekly series or simulate one; store and return the raw data."""
+        """Load a real weekly series or simulate one; store and return the raw data.
+
+        Parameters
+        ----------
+        rng : Optional[np.random.Generator]
+            Random generator used when simulating; system default if ``None``.
+
+        Returns
+        -------
+        Dict
+            The raw data dictionary (also stored on ``self.raw``).
+        """
         m, d = self.config.model, self.config.data
         if d.use_real:
             self.raw = self._load_real()
@@ -70,7 +94,18 @@ class EpiProblem(Problem):
                 "I_raw": df[d.infected_col].values.astype(float)}
 
     def reconstruct(self) -> Dict:
-        """Reconstruct S(t) (and R) via the configured method; store and return data."""
+        """Reconstruct S(t) (and R) via the configured method; store and return data.
+
+        Returns
+        -------
+        Dict
+            The reconstructed data dictionary (also stored on ``self.data``).
+
+        Raises
+        ------
+        ValueError
+            If the configured ``s_recon`` method is unknown.
+        """
         if self.raw is None:
             self.load_or_simulate()
         m, e = self.config.model, self.config.estim
@@ -97,7 +132,14 @@ class EpiProblem(Problem):
 
     # -- estimation -------------------------------------------------------
     def estimate(self) -> Dict:
-        """Run the configured local + global beta(t) estimators; return their results."""
+        """Run the configured local + global beta(t) estimators; return their results.
+
+        Returns
+        -------
+        Dict
+            A dictionary with ``"local"`` per-method estimates and an optional
+            ``"global"`` time-basis fit.
+        """
         if self.data is None:
             self.reconstruct()
         m, e = self.config.model, self.config.estim
@@ -129,7 +171,13 @@ class EpiProblem(Problem):
         return out
 
     def reference(self) -> Optional[np.ndarray]:
-        """The true beta(t) when data is simulated, else ``None``."""
+        """The true beta(t) when data is simulated, else ``None``.
+
+        Returns
+        -------
+        Optional[np.ndarray]
+            The ground-truth ``beta(t)`` array, or ``None`` if unavailable.
+        """
         if self.data is not None:
             return self.data.get("beta_true")
         return None

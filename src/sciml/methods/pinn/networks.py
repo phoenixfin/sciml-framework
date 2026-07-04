@@ -17,12 +17,28 @@ def build_mlp(in_dim: int = 2, hidden: int = 5, width: int = 128, out_dim: int =
 
     Parameters
     ----------
-    in_dim : input dimension (e.g. 2 for ``(x, t)``).
-    hidden : number of hidden layers.
-    width : hidden-layer width.
-    out_dim : output dimension.
-    fourier_freq : if given, prepend a :class:`FourierEmbedding` with this many
+    in_dim : int
+        Input dimension (e.g. 2 for ``(x, t)``).
+    hidden : int
+        Number of hidden layers.
+    width : int
+        Hidden-layer width.
+    out_dim : int
+        Output dimension.
+    fourier_freq : Optional[int]
+        If given, prepend a :class:`FourierEmbedding` with this many
         frequencies (recommended for high-frequency solutions).
+    fourier_sigma : float
+        Standard deviation of the Fourier embedding's random projection.
+    activation : str
+        Activation function used in the hidden layers.
+    name : str
+        Name assigned to the constructed Keras model.
+
+    Returns
+    -------
+    keras.Model
+        The constructed PINN network.
     """
     inp = keras.Input((in_dim,))
     h = FourierEmbedding(fourier_freq, fourier_sigma, name=f"{name}_fourier")(inp) \

@@ -16,7 +16,31 @@ import numpy as np
 def kuramoto_sivashinsky(n: int = 128, length: float = 22.0, t_final: float = 150.0,
                          dt: float = 0.25, n_save: int = 300,
                          u0: Optional[np.ndarray] = None, seed: int = 0) -> Dict:
-    """Integrate KS and return ``{x, t, u}`` with ``u`` of shape ``(n_save, n)``."""
+    """Integrate KS and return ``{x, t, u}`` with ``u`` of shape ``(n_save, n)``.
+
+    Parameters
+    ----------
+    n : int
+        Number of spatial grid points.
+    length : float
+        Length of the periodic spatial domain.
+    t_final : float
+        Final integration time.
+    dt : float
+        Time step for the ETDRK4 integrator.
+    n_save : int
+        Target number of snapshots to save.
+    u0 : Optional[np.ndarray]
+        Initial condition; if ``None`` a default noisy profile is generated.
+    seed : int
+        Seed for the random noise used when ``u0`` is ``None``.
+
+    Returns
+    -------
+    Dict
+        Dictionary with keys ``x`` (grid), ``t`` (times) and ``u`` (snapshots
+        of shape ``(n_save, n)``).
+    """
     x = length * np.arange(n) / n
     if u0 is None:
         rng = np.random.default_rng(seed)

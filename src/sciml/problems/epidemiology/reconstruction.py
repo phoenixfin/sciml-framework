@@ -8,7 +8,7 @@ Three options matching the notebook:
 
 from __future__ import annotations
 
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 
@@ -22,16 +22,65 @@ def _cumtrapz(y: np.ndarray, x: np.ndarray) -> np.ndarray:
     return out
 
 
-def reconstruct_S_cumulative(t, I, N, gamma) -> Tuple[np.ndarray, np.ndarray]:
-    """``R(t) = int gamma*I``, ``S = N - I - R`` (constant gamma, single strain)."""
+def reconstruct_S_cumulative(t: np.ndarray, I: np.ndarray, N: float,
+                             gamma: float) -> Tuple[np.ndarray, np.ndarray]:
+    """``R(t) = int gamma*I``, ``S = N - I - R`` (constant gamma, single strain).
+
+    Parameters
+    ----------
+    t : np.ndarray
+        Time array.
+    I : np.ndarray
+        Infected series.
+    N : float
+        Total population size.
+    gamma : float
+        Recovery rate.
+
+    Returns
+    -------
+    Tuple[np.ndarray, np.ndarray]
+        The reconstructed susceptible ``S(t)`` and recovered ``R(t)`` series.
+    """
     R = _cumtrapz(gamma * I, t)
     S = np.clip(N - I - R, 0, N)
     return S, R
 
 
-def reconstruct_S_ode(t, I, N, gamma, mu=0.0, omega=0.0, model="SIR",
-                      sg_window=11, sg_poly=3, mask_eps=1e-4) -> Tuple[np.ndarray, np.ndarray]:
-    """Forward-integrate compartments using I(t) as forcing; beta back-computed."""
+def reconstruct_S_ode(t: np.ndarray, I: np.ndarray, N: float, gamma: float,
+                      mu: float = 0.0, omega: float = 0.0, model: str = "SIR",
+                      sg_window: int = 11, sg_poly: int = 3, mask_eps: float = 1e-4
+                      ) -> Tuple[np.ndarray, np.ndarray]:
+    """Forward-integrate compartments using I(t) as forcing; beta back-computed.
+
+    Parameters
+    ----------
+    t : np.ndarray
+        Time array.
+    I : np.ndarray
+        Infected series (used as forcing).
+    N : float
+        Total population size.
+    gamma : float
+        Recovery rate.
+    mu : float
+        Birth/death rate.
+    omega : float
+        Waning-immunity rate.
+    model : str
+        Compartmental model, one of ``"SI"``, ``"SIR"`` or ``"SIRS"``.
+    sg_window : int
+        Savitzky-Golay smoothing window length for the derivative of ``I``.
+    sg_poly : int
+        Savitzky-Golay polynomial order.
+    mask_eps : float
+        Relative floor on the ``S I / N`` denominator when back-computing beta.
+
+    Returns
+    -------
+    Tuple[np.ndarray, np.ndarray]
+        The reconstructed susceptible ``S(t)`` and recovered ``R(t)`` series.
+    """
     dI = savgol_derivative(I, t, window=sg_window, poly=sg_poly)
 
     def I_at(time):
@@ -60,11 +109,42 @@ def reconstruct_S_ode(t, I, N, gamma, mu=0.0, omega=0.0, model="SIR",
     return S, R
 
 
-def reconstruct_S_ekf(t, I_obs, N, gamma, mu=0.0, omega=0.0, model="SIR",
-                      Q_diag=(1e4, 1e4, 1e4), R_obs=None, beta_init=0.3):
+def reconstruct_S_ekf(t: np.ndarray, I_obs: np.ndarray, N: float, gamma: float,
+                      mu: float = 0.0, omega: float = 0.0, model: str = "SIR",
+                      Q_diag: Tuple = (1e4, 1e4, 1e4), R_obs: Optional[float] = None,
+                      beta_init: float = 0.3
+                      ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Extended Kalman Filter over state ``[S, I, R, beta]`` (beta random walk).
 
     Returns ``(S_hist, R_hist, beta_hist)`` -- the EKF's own beta estimate too.
+
+    Parameters
+    ----------
+    t : np.ndarray
+        Time array.
+    I_obs : np.ndarray
+        Observed infected series.
+    N : float
+        Total population size.
+    gamma : float
+        Recovery rate.
+    mu : float
+        Birth/death rate.
+    omega : float
+        Waning-immunity rate.
+    model : str
+        Compartmental model, one of ``"SI"``, ``"SIR"`` or ``"SIRS"``.
+    Q_diag : Tuple
+        Process-noise variances for the ``S``, ``I`` and ``R`` states.
+    R_obs : Optional[float]
+        Observation-noise variance; defaults to ``var(I_obs) / 10`` when ``None``.
+    beta_init : float
+        Initial guess for the transmission rate beta.
+
+    Returns
+    -------
+    Tuple[np.ndarray, np.ndarray, np.ndarray]
+        The filtered susceptible ``S(t)``, recovered ``R(t)`` and beta histories.
     """
     dt = float(np.mean(np.diff(t)))
     if R_obs is None:

@@ -8,7 +8,20 @@ _CONFIGURED = False
 
 
 def get_logger(name: str = "sciml", level: int = logging.INFO) -> logging.Logger:
-    """Return a logger under the ``sciml`` root, configured once."""
+    """Return a logger under the ``sciml`` root, configuring a handler once.
+
+    Parameters
+    ----------
+    name : str
+        Logger name; a ``sciml.`` prefix is added if missing.
+    level : int
+        Logging level applied when the root handler is first configured.
+
+    Returns
+    -------
+    logging.Logger
+        The configured logger instance.
+    """
     global _CONFIGURED
     if not _CONFIGURED:
         handler = logging.StreamHandler()

@@ -18,21 +18,91 @@ class FeatureLibrary:
     """Base class. Subclasses implement :meth:`transform` and :meth:`names`."""
 
     def transform(self, X: np.ndarray) -> np.ndarray:  # pragma: no cover - abstract
-        """Map data ``X`` ``(m, d)`` to the feature matrix ``Theta`` ``(m, p)``."""
+        """Map data ``X`` ``(m, d)`` to the feature matrix ``Theta`` ``(m, p)``.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Data matrix of shape ``(m, d)``.
+
+        Returns
+        -------
+        np.ndarray
+            The feature matrix ``Theta`` of shape ``(m, p)``.
+
+        Raises
+        ------
+        NotImplementedError
+            Always; subclasses must override this method.
+        """
         raise NotImplementedError
 
     def names(self, input_names: Optional[Sequence[str]] = None) -> List[str]:  # pragma: no cover
-        """Return the ``p`` human-readable feature names."""
+        """Return the ``p`` human-readable feature names.
+
+        Parameters
+        ----------
+        input_names : Optional[Sequence[str]]
+            Names of the ``d`` input variables.
+
+        Returns
+        -------
+        List[str]
+            The ``p`` feature names.
+
+        Raises
+        ------
+        NotImplementedError
+            Always; subclasses must override this method.
+        """
         raise NotImplementedError
 
     def __call__(self, X: np.ndarray) -> np.ndarray:
+        """Transform ``X`` after coercing it to a 2D float array.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Data matrix (coerced to at least 2D float).
+
+        Returns
+        -------
+        np.ndarray
+            The feature matrix ``Theta``.
+        """
         return self.transform(np.atleast_2d(np.asarray(X, dtype=float)))
 
     def __add__(self, other: "FeatureLibrary") -> "ConcatLibrary":
+        """Concatenate this library with ``other``.
+
+        Parameters
+        ----------
+        other : "FeatureLibrary"
+            The library to concatenate with.
+
+        Returns
+        -------
+        "ConcatLibrary"
+            A concatenated library combining both.
+        """
         return ConcatLibrary([self, other])
 
     @staticmethod
     def _input_names(d: int, input_names: Optional[Sequence[str]]) -> List[str]:
+        """Resolve input-variable names, defaulting to ``x0, x1, ...``.
+
+        Parameters
+        ----------
+        d : int
+            Number of input variables.
+        input_names : Optional[Sequence[str]]
+            Explicit names, or None to auto-generate.
+
+        Returns
+        -------
+        List[str]
+            The resolved input-variable names.
+        """
         if input_names is not None:
             return list(input_names)
         return [f"x{i}" for i in range(d)]
@@ -43,11 +113,34 @@ class PolynomialLibrary(FeatureLibrary):
 
     def __init__(self, degree: int = 2, include_bias: bool = True,
                  interaction_only: bool = False):
+        """Configure the polynomial degree and term options.
+
+        Parameters
+        ----------
+        degree : int
+            Maximum total monomial degree.
+        include_bias : bool
+            Whether to include the constant (degree-0) term.
+        interaction_only : bool
+            If True, exclude terms with repeated variables (pure powers).
+        """
         self.degree = degree
         self.include_bias = include_bias
         self.interaction_only = interaction_only
 
-    def _combos(self, d: int):
+    def _combos(self, d: int) -> list:
+        """Enumerate the variable-index combinations for each monomial.
+
+        Parameters
+        ----------
+        d : int
+            Number of input variables.
+
+        Returns
+        -------
+        list
+            One tuple of variable indices per monomial term.
+        """
         combos = []
         start = 0 if self.include_bias else 1
         for deg in range(start, self.degree + 1):
@@ -61,7 +154,18 @@ class PolynomialLibrary(FeatureLibrary):
         return combos
 
     def transform(self, X: np.ndarray) -> np.ndarray:
-        """Evaluate every monomial term column-wise -> ``(m, p)``."""
+        """Evaluate every monomial term column-wise -> ``(m, p)``.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Data matrix of shape ``(m, d)``.
+
+        Returns
+        -------
+        np.ndarray
+            The monomial feature matrix of shape ``(m, p)``.
+        """
         X = np.atleast_2d(X)
         d = X.shape[1]
         cols = []
@@ -76,7 +180,18 @@ class PolynomialLibrary(FeatureLibrary):
         return np.column_stack(cols)
 
     def names(self, input_names: Optional[Sequence[str]] = None) -> List[str]:
-        """Monomial names such as ``1``, ``x``, ``x^2``, ``x*y`` (needs ``input_names``)."""
+        """Monomial names such as ``1``, ``x``, ``x^2``, ``x*y`` (needs ``input_names``).
+
+        Parameters
+        ----------
+        input_names : Optional[Sequence[str]]
+            Names of the ``d`` input variables.
+
+        Returns
+        -------
+        List[str]
+            The monomial term names.
+        """
         raise_if_unknown = input_names is None
         d = 1 if raise_if_unknown else len(input_names)
         names = []
@@ -101,11 +216,31 @@ class FourierLibrary(FeatureLibrary):
     """
 
     def __init__(self, n_frequencies: int = 3, period: float = 1.0):
+        """Configure the number of harmonics and the base period.
+
+        Parameters
+        ----------
+        n_frequencies : int
+            Number of harmonics ``k = 1..n_frequencies`` per column.
+        period : float
+            Base period used to set the fundamental frequency.
+        """
         self.n_frequencies = n_frequencies
         self.period = period
 
     def transform(self, X: np.ndarray) -> np.ndarray:
-        """Stack sine/cosine harmonics of every column -> ``(m, 2 * d * n_freq)``."""
+        """Stack sine/cosine harmonics of every column -> ``(m, 2 * d * n_freq)``.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Data matrix of shape ``(m, d)``.
+
+        Returns
+        -------
+        np.ndarray
+            The harmonic feature matrix of shape ``(m, 2 * d * n_freq)``.
+        """
         X = np.atleast_2d(X)
         cols = []
         for j in range(X.shape[1]):
@@ -116,7 +251,18 @@ class FourierLibrary(FeatureLibrary):
         return np.column_stack(cols)
 
     def names(self, input_names: Optional[Sequence[str]] = None) -> List[str]:
-        """Harmonic names such as ``sin(1w*x)``, ``cos(1w*x)``."""
+        """Harmonic names such as ``sin(1w*x)``, ``cos(1w*x)``.
+
+        Parameters
+        ----------
+        input_names : Optional[Sequence[str]]
+            Names of the ``d`` input variables.
+
+        Returns
+        -------
+        List[str]
+            The harmonic term names.
+        """
         d = 1 if input_names is None else len(input_names)
         nm = self._input_names(d, input_names)
         names = []
@@ -132,18 +278,54 @@ class CustomLibrary(FeatureLibrary):
 
     def __init__(self, functions: Sequence[Callable[[np.ndarray], np.ndarray]],
                  names: Sequence[str]):
+        """Store the user term functions and their matching names.
+
+        Parameters
+        ----------
+        functions : Sequence[Callable[[np.ndarray], np.ndarray]]
+            Term functions mapping ``X`` to a column ``(m,)``.
+        names : Sequence[str]
+            One name per term function.
+
+        Raises
+        ------
+        ValueError
+            If ``functions`` and ``names`` differ in length.
+        """
         if len(functions) != len(names):
             raise ValueError("functions and names must have equal length")
         self.functions = list(functions)
         self._names = list(names)
 
     def transform(self, X: np.ndarray) -> np.ndarray:
-        """Apply each user function to ``X`` and stack the columns."""
+        """Apply each user function to ``X`` and stack the columns.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Data matrix of shape ``(m, d)``.
+
+        Returns
+        -------
+        np.ndarray
+            The stacked feature matrix of shape ``(m, len(functions))``.
+        """
         X = np.atleast_2d(X)
         return np.column_stack([f(X) for f in self.functions])
 
     def names(self, input_names: Optional[Sequence[str]] = None) -> List[str]:
-        """Return the user-provided term names."""
+        """Return the user-provided term names.
+
+        Parameters
+        ----------
+        input_names : Optional[Sequence[str]]
+            Ignored; present for interface compatibility.
+
+        Returns
+        -------
+        List[str]
+            The user-provided term names.
+        """
         return list(self._names)
 
 
@@ -151,14 +333,43 @@ class ConcatLibrary(FeatureLibrary):
     """Horizontally concatenate several libraries."""
 
     def __init__(self, libraries: Sequence[FeatureLibrary]):
+        """Store the sub-libraries to concatenate.
+
+        Parameters
+        ----------
+        libraries : Sequence[FeatureLibrary]
+            The feature libraries to concatenate horizontally.
+        """
         self.libraries: List[FeatureLibrary] = list(libraries)
 
     def transform(self, X: np.ndarray) -> np.ndarray:
-        """Concatenate the feature matrices of all sub-libraries."""
+        """Concatenate the feature matrices of all sub-libraries.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Data matrix of shape ``(m, d)``.
+
+        Returns
+        -------
+        np.ndarray
+            The horizontally concatenated feature matrix.
+        """
         return np.column_stack([lib.transform(np.atleast_2d(X)) for lib in self.libraries])
 
     def names(self, input_names: Optional[Sequence[str]] = None) -> List[str]:
-        """Concatenate the feature names of all sub-libraries."""
+        """Concatenate the feature names of all sub-libraries.
+
+        Parameters
+        ----------
+        input_names : Optional[Sequence[str]]
+            Names of the ``d`` input variables.
+
+        Returns
+        -------
+        List[str]
+            The concatenated feature names.
+        """
         out: List[str] = []
         for lib in self.libraries:
             out.extend(lib.names(input_names))

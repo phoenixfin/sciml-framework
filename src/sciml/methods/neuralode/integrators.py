@@ -9,12 +9,46 @@ import tensorflow as tf
 
 
 def euler_step(func: Callable, t: float, y: tf.Tensor, dt: float) -> tf.Tensor:
-    """Single explicit-Euler step ``y + dt * func(t, y)``."""
+    """Single explicit-Euler step ``y + dt * func(t, y)``.
+
+    Parameters
+    ----------
+    func : Callable
+        Dynamics function ``func(t, y)`` returning the time derivative.
+    t : float
+        Current time.
+    y : tf.Tensor
+        Current state of shape ``(B, d)``.
+    dt : float
+        Time-step size.
+
+    Returns
+    -------
+    tf.Tensor
+        The state advanced by one Euler step.
+    """
     return y + dt * func(t, y)
 
 
 def rk4_step(func: Callable, t: float, y: tf.Tensor, dt: float) -> tf.Tensor:
-    """Single classic fourth-order Runge-Kutta step."""
+    """Single classic fourth-order Runge-Kutta step.
+
+    Parameters
+    ----------
+    func : Callable
+        Dynamics function ``func(t, y)`` returning the time derivative.
+    t : float
+        Current time.
+    y : tf.Tensor
+        Current state of shape ``(B, d)``.
+    dt : float
+        Time-step size.
+
+    Returns
+    -------
+    tf.Tensor
+        The state advanced by one RK4 step.
+    """
     k1 = func(t, y)
     k2 = func(t + dt / 2, y + dt / 2 * k1)
     k3 = func(t + dt / 2, y + dt / 2 * k2)
@@ -22,12 +56,29 @@ def rk4_step(func: Callable, t: float, y: tf.Tensor, dt: float) -> tf.Tensor:
     return y + dt / 6.0 * (k1 + 2 * k2 + 2 * k3 + k4)
 
 
-def odeint(func: Callable, y0: tf.Tensor, t, method: str = "rk4") -> tf.Tensor:
+def odeint(func: Callable, y0: tf.Tensor, t: np.ndarray,
+           method: str = "rk4") -> tf.Tensor:
     """Integrate ``dy/dt = func(t, y)`` over the time points ``t``.
 
     ``func(t, y)`` takes a scalar time and a state ``(B, d)`` and returns
     ``(B, d)``. ``t`` is a 1D array of (static length) increasing times. Returns
     the trajectory stacked along a new leading axis: ``(len(t), B, d)``.
+
+    Parameters
+    ----------
+    func : Callable
+        Dynamics function ``func(t, y)`` returning the time derivative.
+    y0 : tf.Tensor
+        Initial state of shape ``(B, d)``.
+    t : np.ndarray
+        1D array of increasing times to integrate over.
+    method : str
+        Integration method, ``"rk4"`` (default) or ``"euler"``.
+
+    Returns
+    -------
+    tf.Tensor
+        The integrated trajectory of shape ``(len(t), B, d)``.
     """
     ts = np.asarray(t, dtype=np.float32)
     step = rk4_step if method == "rk4" else euler_step

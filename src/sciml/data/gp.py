@@ -15,6 +15,20 @@ import numpy as np
 
 
 def _cholesky_jitter(K: np.ndarray, jitter: float = 1e-5) -> np.ndarray:
+    """Cholesky factor of ``K`` with a diagonal jitter for stability.
+
+    Parameters
+    ----------
+    K : np.ndarray
+        A symmetric positive-semidefinite covariance matrix.
+    jitter : float
+        Value added to the diagonal before factorization.
+
+    Returns
+    -------
+    np.ndarray
+        The lower-triangular Cholesky factor.
+    """
     return np.linalg.cholesky(K + jitter * np.eye(K.shape[0]))
 
 
@@ -26,23 +40,49 @@ class PeriodicGPSampler:
     periodic, so the boundary gap ``|f(0) - f(L)|`` is ~0 by construction.
     """
 
-    period: float
-    length_scale: float = 2.0
-    amplitude: float = 0.4
-    mean: float = 0.0
-    clip_min: Optional[float] = None
-    clip_max: Optional[float] = None
-    jitter: float = 1e-5
+    period: float                       #: kernel period / domain length
+    length_scale: float = 2.0           #: correlation length (larger = smoother)
+    amplitude: float = 0.4              #: output scale
+    mean: float = 0.0                   #: constant mean function
+    clip_min: Optional[float] = None    #: optional lower clamp on samples
+    clip_max: Optional[float] = None    #: optional upper clamp on samples
+    jitter: float = 1e-5                #: Cholesky diagonal regularizer
 
     def kernel(self, x: np.ndarray) -> np.ndarray:
-        """Periodic squared-exponential covariance matrix over points ``x``."""
+        """Periodic squared-exponential covariance matrix over points ``x``.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            Points at which to evaluate the kernel.
+
+        Returns
+        -------
+        np.ndarray
+            The ``(len(x), len(x))`` covariance matrix.
+        """
         diff = x[:, None] - x[None, :]
         return self.amplitude**2 * np.exp(
             -2.0 * np.sin(np.pi * diff / self.period) ** 2 / self.length_scale**2)
 
     def sample(self, x: np.ndarray, n: int,
                rng: Optional[np.random.Generator] = None) -> np.ndarray:
-        """Draw ``n`` functions at points ``x`` -> ``(n, len(x))`` float32."""
+        """Draw ``n`` sample functions evaluated at points ``x``.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            Points at which to evaluate the sampled functions.
+        n : int
+            Number of functions to draw.
+        rng : Optional[np.random.Generator]
+            Random generator; the global numpy RNG is used when ``None``.
+
+        Returns
+        -------
+        np.ndarray
+            A ``(n, len(x))`` float32 array of sampled function values.
+        """
         x = np.asarray(x, dtype=np.float64)
         L = _cholesky_jitter(self.kernel(x), self.jitter)
         z = (np.random.randn(len(x), n) if rng is None
@@ -60,21 +100,47 @@ class GPSampler:
     Kernel ``amp**2 * exp(-(x - x')^2 / (2 ls^2))``.
     """
 
-    length_scale: float = 1.0
-    amplitude: float = 1.0
-    mean: float = 0.0
-    clip_min: Optional[float] = None
-    clip_max: Optional[float] = None
-    jitter: float = 1e-5
+    length_scale: float = 1.0           #: correlation length
+    amplitude: float = 1.0              #: output scale
+    mean: float = 0.0                   #: constant mean function
+    clip_min: Optional[float] = None    #: optional lower clamp on samples
+    clip_max: Optional[float] = None    #: optional upper clamp on samples
+    jitter: float = 1e-5                #: Cholesky diagonal regularizer
 
     def kernel(self, x: np.ndarray) -> np.ndarray:
-        """Non-periodic squared-exponential covariance matrix over points ``x``."""
+        """Non-periodic squared-exponential covariance matrix over points ``x``.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            Points at which to evaluate the kernel.
+
+        Returns
+        -------
+        np.ndarray
+            The ``(len(x), len(x))`` covariance matrix.
+        """
         diff = x[:, None] - x[None, :]
         return self.amplitude**2 * np.exp(-(diff**2) / (2.0 * self.length_scale**2))
 
     def sample(self, x: np.ndarray, n: int,
                rng: Optional[np.random.Generator] = None) -> np.ndarray:
-        """Draw ``n`` functions at points ``x`` -> ``(n, len(x))`` float32."""
+        """Draw ``n`` sample functions evaluated at points ``x``.
+
+        Parameters
+        ----------
+        x : np.ndarray
+            Points at which to evaluate the sampled functions.
+        n : int
+            Number of functions to draw.
+        rng : Optional[np.random.Generator]
+            Random generator; the global numpy RNG is used when ``None``.
+
+        Returns
+        -------
+        np.ndarray
+            A ``(n, len(x))`` float32 array of sampled function values.
+        """
         x = np.asarray(x, dtype=np.float64)
         L = _cholesky_jitter(self.kernel(x), self.jitter)
         z = (np.random.randn(len(x), n) if rng is None

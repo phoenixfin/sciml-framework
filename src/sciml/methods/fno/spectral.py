@@ -15,12 +15,33 @@ class SpectralConv1D(keras.layers.Layer):
     """
 
     def __init__(self, out_channels: int, modes: int, **kw):
+        """Store the output channel count and number of retained modes.
+
+        Parameters
+        ----------
+        out_channels : int
+            Number of output channels ``O``.
+        modes : int
+            Number of retained rfft frequencies.
+        **kw
+            Extra keyword arguments forwarded to :class:`keras.layers.Layer`.
+        """
         super().__init__(**kw)
         self.out_channels = out_channels
         self.modes = modes
 
-    def build(self, input_shape):
-        """Create the learned complex weights (real/imag parts) for each mode."""
+    def build(self, input_shape: tf.TensorShape) -> None:
+        """Create the learned complex weights (real/imag parts) for each mode.
+
+        Parameters
+        ----------
+        input_shape : tf.TensorShape
+            Shape of the input tensor ``(batch, n_x, channels)``.
+
+        Returns
+        -------
+        None
+        """
         in_ch = int(input_shape[-1])
         scale = 1.0 / (in_ch * self.out_channels)
         init = keras.initializers.RandomUniform(-scale, scale)
@@ -29,8 +50,19 @@ class SpectralConv1D(keras.layers.Layer):
         self.w_imag = self.add_weight(
             name="w_imag", shape=(in_ch, self.out_channels, self.modes), initializer=init)
 
-    def call(self, x):
-        """Apply the spectral convolution to ``x`` ``(B, N, C)`` -> ``(B, N, O)``."""
+    def call(self, x: tf.Tensor) -> tf.Tensor:
+        """Apply the spectral convolution to ``x`` ``(B, N, C)`` -> ``(B, N, O)``.
+
+        Parameters
+        ----------
+        x : tf.Tensor
+            Input tensor of shape ``(B, N, C)``.
+
+        Returns
+        -------
+        tf.Tensor
+            The spectrally convolved output of shape ``(B, N, O)``.
+        """
         n = tf.shape(x)[1]
         x_t = tf.transpose(x, [0, 2, 1])                  # (B, in_ch, N)
         x_ft = tf.signal.rfft(x_t)                        # (B, in_ch, N//2+1) complex
@@ -42,8 +74,14 @@ class SpectralConv1D(keras.layers.Layer):
         out = tf.signal.irfft(out_ft, fft_length=tf.reshape(n, [1]))  # (B, out_ch, N)
         return tf.transpose(out, [0, 2, 1])               # (B, N, out_ch)
 
-    def get_config(self):
-        """Return the serializable layer configuration."""
+    def get_config(self) -> dict:
+        """Return the serializable layer configuration.
+
+        Returns
+        -------
+        dict
+            The layer configuration including ``out_channels`` and ``modes``.
+        """
         cfg = super().get_config()
         cfg.update({"out_channels": self.out_channels, "modes": self.modes})
         return cfg
@@ -59,13 +97,36 @@ class SpectralConv2D(keras.layers.Layer):
     """
 
     def __init__(self, out_channels: int, modes1: int, modes2: int, **kw):
+        """Store the output channels and the retained modes per dimension.
+
+        Parameters
+        ----------
+        out_channels : int
+            Number of output channels ``O``.
+        modes1 : int
+            Retained low frequencies in the first spatial dimension.
+        modes2 : int
+            Retained frequencies in the second (rfft) dimension.
+        **kw
+            Extra keyword arguments forwarded to :class:`keras.layers.Layer`.
+        """
         super().__init__(**kw)
         self.out_channels = out_channels
         self.modes1 = modes1
         self.modes2 = modes2
 
-    def build(self, input_shape):
-        """Read the fixed grid size and create the two corner-block weight sets."""
+    def build(self, input_shape: tf.TensorShape) -> None:
+        """Read the fixed grid size and create the two corner-block weight sets.
+
+        Parameters
+        ----------
+        input_shape : tf.TensorShape
+            Shape of the input tensor ``(batch, H, W, channels)``.
+
+        Returns
+        -------
+        None
+        """
         in_ch = int(input_shape[-1])
         self.H = int(input_shape[1])
         self.W = int(input_shape[2])
@@ -78,8 +139,19 @@ class SpectralConv2D(keras.layers.Layer):
         self.w2_real = self.add_weight(name="w2_real", shape=shape, initializer=init)
         self.w2_imag = self.add_weight(name="w2_imag", shape=shape, initializer=init)
 
-    def call(self, x):
-        """Apply the 2D spectral convolution to ``x`` ``(B, H, W, C)`` -> ``(B, H, W, O)``."""
+    def call(self, x: tf.Tensor) -> tf.Tensor:
+        """Apply the 2D spectral convolution to ``x`` ``(B, H, W, C)`` -> ``(B, H, W, O)``.
+
+        Parameters
+        ----------
+        x : tf.Tensor
+            Input tensor of shape ``(B, H, W, C)``.
+
+        Returns
+        -------
+        tf.Tensor
+            The spectrally convolved output of shape ``(B, H, W, O)``.
+        """
         m1, m2 = self.modes1, self.modes2
         x_t = tf.transpose(x, [0, 3, 1, 2])               # (B, C, H, W)
         x_ft = tf.signal.rfft2d(x_t)                      # (B, C, H, Wf) complex
@@ -96,8 +168,15 @@ class SpectralConv2D(keras.layers.Layer):
         out = tf.signal.irfft2d(out_ft, fft_length=[self.H, self.W])  # (B, O, H, W)
         return tf.transpose(out, [0, 2, 3, 1])            # (B, H, W, O)
 
-    def get_config(self):
-        """Return the serializable layer configuration."""
+    def get_config(self) -> dict:
+        """Return the serializable layer configuration.
+
+        Returns
+        -------
+        dict
+            The layer configuration including ``out_channels``, ``modes1`` and
+            ``modes2``.
+        """
         cfg = super().get_config()
         cfg.update({"out_channels": self.out_channels,
                     "modes1": self.modes1, "modes2": self.modes2})

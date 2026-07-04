@@ -26,27 +26,71 @@ class History:
     values: Dict[str, List[float]] = field(default_factory=dict)
 
     def record(self, it: int, components: Dict[str, float]) -> None:
-        """Append the scalar ``components`` recorded at iteration ``it``."""
+        """Append the scalar ``components`` recorded at iteration ``it``.
+
+        Parameters
+        ----------
+        it : int
+            The iteration number at which the components were recorded.
+        components : Dict[str, float]
+            Mapping of component name to its scalar value.
+
+        Returns
+        -------
+        None
+        """
         self.iters.append(it)
         for k, v in components.items():
             self.values.setdefault(k, []).append(float(v))
 
     def to_dict(self) -> Dict[str, List[float]]:
-        """Return the history as a plain dict (``iter`` plus each component)."""
+        """Return the history as a plain dict (``iter`` plus each component).
+
+        Returns
+        -------
+        Dict[str, List[float]]
+            The recorded iterations under ``iter`` plus one list per component.
+        """
         return {"iter": list(self.iters), **{k: list(v) for k, v in self.values.items()}}
 
 
 class Trainer:
     """Drive a training loop from an injected ``step_fn`` and ``sample_batch``."""
 
-    def __init__(self, model, optimizer, step_fn: Callable[..., Tuple],
+    def __init__(self, model: "object", optimizer: "object",
+                 step_fn: Callable[..., Tuple],
                  component_names: Optional[Sequence[str]] = None):
+        """Store the model, optimizer, step function and component names.
+
+        Parameters
+        ----------
+        model : object
+            The model being trained (checkpointed alongside the optimizer).
+        optimizer : object
+            The optimizer being used (checkpointed alongside the model).
+        step_fn : Callable[..., Tuple]
+            Injected step function returning ``(loss, *components)``.
+        component_names : Optional[Sequence[str]]
+            Names for the extra loss components returned by ``step_fn``.
+        """
         self.model = model
         self.optimizer = optimizer
         self.step_fn = step_fn
         self.component_names = list(component_names) if component_names else None
 
     def _label(self, outputs: Tuple) -> Dict[str, float]:
+        """Label a raw ``step_fn`` output tuple with component names.
+
+        Parameters
+        ----------
+        outputs : Tuple
+            The ``(loss, *components)`` tuple returned by ``step_fn``.
+
+        Returns
+        -------
+        Dict[str, float]
+            Mapping of component name to scalar value, including ``loss``.
+        """
         comps = {"loss": float(outputs[0])}
         extras = outputs[1:]
         names = self.component_names or [f"c{i}" for i in range(len(extras))]
@@ -58,7 +102,32 @@ class Trainer:
             log_every: int = 1000, history_every: int = 1000,
             ckpt_dir: Optional[str] = None, ckpt_every: int = 2000,
             warmup: int = 1, verbose: bool = True) -> History:
-        """Run ``n_iter`` training steps, logging/checkpointing, returning the History."""
+        """Run ``n_iter`` training steps, logging/checkpointing, returning the History.
+
+        Parameters
+        ----------
+        sample_batch : Callable[[int], Tuple]
+            Producer mapping an iteration index to a batch tuple.
+        n_iter : int
+            Number of training iterations to run.
+        log_every : int
+            Log progress every this many iterations.
+        history_every : int
+            Record the history every this many iterations.
+        ckpt_dir : Optional[str]
+            Directory to write checkpoints to (disabled if None).
+        ckpt_every : int
+            Write a checkpoint every this many iterations.
+        warmup : int
+            Number of warm-up steps run before timing/training.
+        verbose : bool
+            Whether to emit progress log messages.
+
+        Returns
+        -------
+        History
+            The recorded training history.
+        """
         import tensorflow as tf
 
         for w in range(warmup):

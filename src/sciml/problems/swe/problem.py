@@ -29,6 +29,13 @@ class SWEProblem(Problem):
     name = "swe"
 
     def __init__(self, config: Optional[SWEConfig] = None):
+        """Initialize the problem, GP samplers and derived grids from a config.
+
+        Parameters
+        ----------
+        config : Optional[SWEConfig]
+            Problem configuration; a default :class:`SWEConfig` is used if ``None``.
+        """
         super().__init__(config or SWEConfig())
         c = self.config
         self.L = float(c.domain.length)
@@ -58,7 +65,18 @@ class SWEProblem(Problem):
 
     # -- data preparation -------------------------------------------------
     def prepare(self, seed: Optional[int] = None) -> "SWEProblem":
-        """Build the GP training pool (+ C1/C2 anchors) and precompute grid interpolations."""
+        """Build the GP training pool (+ C1/C2 anchors) and precompute grid interpolations.
+
+        Parameters
+        ----------
+        seed : Optional[int]
+            Random seed for reproducible GP sampling; unseeded if ``None``.
+
+        Returns
+        -------
+        SWEProblem
+            This problem instance (for chaining).
+        """
         c = self.config
         if seed is not None:
             np.random.seed(seed)
@@ -81,13 +99,32 @@ class SWEProblem(Problem):
         return self
 
     def boundary_gap(self) -> float:
-        """Mean ``|h0(0) - h0(L)|`` over the GP pool (periodicity diagnostic)."""
+        """Mean ``|h0(0) - h0(L)|`` over the GP pool (periodicity diagnostic).
+
+        Returns
+        -------
+        float
+            The mean absolute boundary mismatch across the GP training pool.
+        """
         n_train = self.config.data.n_train
         return float(np.abs(self.H0_s[:n_train, 0] - self.H0_s[:n_train, -1]).mean())
 
     def generate_dataset(self, n_data_gp: Optional[int] = None,
                          verbose: bool = True) -> "SWEProblem":
-        """Run the reference solver on the supervised subset and stage TF tensors."""
+        """Run the reference solver on the supervised subset and stage TF tensors.
+
+        Parameters
+        ----------
+        n_data_gp : Optional[int]
+            Number of GP-pool trajectories to solve; config default if ``None``.
+        verbose : bool
+            Whether to print progress during dataset generation.
+
+        Returns
+        -------
+        SWEProblem
+            This problem instance (for chaining).
+        """
         if self.H0_s is None:
             self.prepare()
         c = self.config
@@ -129,8 +166,24 @@ class SWEProblem(Problem):
                                   gravity=self.g, nx=c.data.solver_nx,
                                   nt=c.data.solver_nt, t_out=self.t_snaps)
 
-    def reference(self, h0_fn, b_fn, **kw):
-        """Lax-Friedrichs reference solution for arbitrary IC/bathymetry callables."""
+    def reference(self, h0_fn: Callable, b_fn: Callable, **kw: object) -> Tuple:
+        """Lax-Friedrichs reference solution for arbitrary IC/bathymetry callables.
+
+        Parameters
+        ----------
+        h0_fn : Callable
+            Initial-depth profile as a function of ``x``.
+        b_fn : Callable
+            Bathymetry profile as a function of ``x``.
+        **kw : object
+            Solver overrides (``length``, ``t_final``, ``gravity``, ``nx``, ``nt``,
+            ``t_out``); defaults come from the config.
+
+        Returns
+        -------
+        Tuple
+            The reference spatial grid and the snapshot dictionary.
+        """
         c = self.config
         kw.setdefault("length", self.L); kw.setdefault("t_final", self.T)
         kw.setdefault("gravity", self.g); kw.setdefault("nx", c.data.solver_nx)
@@ -139,7 +192,23 @@ class SWEProblem(Problem):
 
     # -- model + training step -------------------------------------------
     def build_model(self, variant: str = "full") -> tf.keras.Model:
-        """Build and warm up a model variant (``full`` / ``shared_branch`` / ``no_ic_shortcut``)."""
+        """Build and warm up a model variant (``full`` / ``shared_branch`` / ``no_ic_shortcut``).
+
+        Parameters
+        ----------
+        variant : str
+            Model variant key to build.
+
+        Returns
+        -------
+        tf.keras.Model
+            The warmed-up model instance.
+
+        Raises
+        ------
+        ValueError
+            If ``variant`` is not a known model variant.
+        """
         if variant not in VARIANTS:
             raise ValueError(f"Unknown variant {variant!r}; choose {list(VARIANTS)}")
         c = self.config
@@ -154,9 +223,31 @@ class SWEProblem(Problem):
         """Names of the extra scalars returned by the training step (data/BC/grad-norm)."""
         return ["Ld", "Lb", "gnorm"]
 
-    def make_step(self, model, optimizer, variant: str = "full",
-                  lam_ic: float = 10.0) -> Callable[..., Tuple]:
-        """Build the ``@tf.function`` data+BC training step (adds an IC loss for A2)."""
+    def make_step(self, model: tf.keras.Model, optimizer: tf.keras.optimizers.Optimizer,
+                  variant: str = "full", lam_ic: float = 10.0) -> Callable[..., Tuple]:
+        """Build the ``@tf.function`` data+BC training step (adds an IC loss for A2).
+
+        Parameters
+        ----------
+        model : tf.keras.Model
+            The model to train.
+        optimizer : tf.keras.optimizers.Optimizer
+            Optimizer applying the gradient updates.
+        variant : str
+            Model variant key; ``no_ic_shortcut`` adds an extra IC loss term.
+        lam_ic : float
+            Weight of the initial-condition loss term.
+
+        Returns
+        -------
+        Callable[..., Tuple]
+            The compiled training-step function returning ``(loss, Ld, Lb, gnorm)``.
+
+        Raises
+        ------
+        RuntimeError
+            If :meth:`generate_dataset` has not been called first.
+        """
         if not self._dataset_ready:
             raise RuntimeError("Call generate_dataset() before make_step().")
         c = self.config
@@ -199,7 +290,18 @@ class SWEProblem(Problem):
         return step
 
     def sample_batch(self, iteration: int) -> Tuple:
-        """Draw one uniform 9-tensor training batch (BC mini-batch + IC mini-batch)."""
+        """Draw one uniform 9-tensor training batch (BC mini-batch + IC mini-batch).
+
+        Parameters
+        ----------
+        iteration : int
+            Current training iteration (unused; kept for the Trainer interface).
+
+        Returns
+        -------
+        Tuple
+            The nine input tensors consumed by the training step.
+        """
         c = self.config
         batch = c.train.batch
         idx = np.random.choice(self.n_total, batch, replace=False)
@@ -216,8 +318,28 @@ class SWEProblem(Problem):
         )
 
     # -- inference --------------------------------------------------------
-    def predict_grid(self, model, h0_fn, b_fn, nx: int = 200, nt: int = 100):
-        """Predict ``(xs, ts, h, hu)`` on an ``nx x nt`` space-time grid."""
+    def predict_grid(self, model: tf.keras.Model, h0_fn: Callable, b_fn: Callable,
+                     nx: int = 200, nt: int = 100) -> Tuple:
+        """Predict ``(xs, ts, h, hu)`` on an ``nx x nt`` space-time grid.
+
+        Parameters
+        ----------
+        model : tf.keras.Model
+            The trained model to evaluate.
+        h0_fn : Callable
+            Initial-depth profile as a function of ``x``.
+        b_fn : Callable
+            Bathymetry profile as a function of ``x``.
+        nx : int
+            Number of spatial grid points.
+        nt : int
+            Number of time grid points.
+
+        Returns
+        -------
+        Tuple
+            The spatial grid, time grid, predicted depth and momentum fields.
+        """
         h0_s = h0_fn(self.x_sensors).reshape(1, -1).astype(np.float32)
         b_s = b_fn(self.x_sensors).reshape(1, -1).astype(np.float32)
         xs = np.linspace(0, self.L, nx, dtype=np.float32)

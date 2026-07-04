@@ -21,24 +21,56 @@ pdoc sciml
 > pdoc sciml.core sciml.data sciml.solvers sciml.methods.sindy sciml.methods.dmd -o site/
 > ```
 
-## Docstring coverage
+## Docstring convention
 
-Coverage is enforced with [`interrogate`](https://interrogate.readthedocs.io),
-configured in `pyproject.toml` (`[tool.interrogate]`, `fail-under = 100`, with
-trivial `__init__`/dunder/nested/private methods ignored):
+All docstrings follow **NumPy style** (PEP 257 compliant): a one-line summary,
+then `Parameters` / `Returns` / `Raises` sections that document **every**
+parameter and the return value. Parameter types are written verbatim from the
+function's type annotations (types live in the signature *and* the docstring so
+the two stay in sync). Example:
+
+```python
+def rel_l2(pred: np.ndarray, ref: np.ndarray, eps: float = 1e-10) -> float:
+    """Relative L2 error ``||pred - ref|| / (||ref|| + eps)``.
+
+    Parameters
+    ----------
+    pred : np.ndarray
+        Predicted values.
+    ref : np.ndarray
+        Reference (ground-truth) values, same shape as ``pred``.
+    eps : float
+        Small constant added to the denominator to avoid division by zero.
+
+    Returns
+    -------
+    float
+        The scalar relative L2 error.
+    """
+```
+
+Config dataclass fields are documented with inline `#:` comments instead of an
+`Attributes` block.
+
+## Docstring coverage & completeness
+
+Two complementary checks, both configured in `pyproject.toml` and run over
+`src/`:
 
 ```bash
 pip install -e ".[dev]"
-interrogate src            # -> RESULT: PASSED (100.0%)
-interrogate -vv src        # per-object detail
+interrogate src   # coverage: every public object HAS a docstring (fail-under = 100)
+pydoclint src     # completeness: every parameter & return IS documented (0 violations)
 ```
 
-Style (PEP 257) can be spot-checked with `pydocstyle` (config in
-`[tool.pydocstyle]`):
+- [`interrogate`](https://interrogate.readthedocs.io) (`[tool.interrogate]`)
+  gates docstring **coverage** at 100% (trivial `__init__`/dunder/nested/private
+  ignored).
+- [`pydoclint`](https://jsh9.github.io/pydoclint/) (`[tool.pydoclint]`, NumPy
+  style) checks docstring **completeness** — that documented parameters/returns
+  match each signature. Zero violations across `src/`.
 
-```bash
-pydocstyle src
-```
+`pydocstyle` (`[tool.pydocstyle]`) can additionally spot-check PEP 257 style.
 
 ## Testing
 

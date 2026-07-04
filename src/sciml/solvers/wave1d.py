@@ -14,7 +14,26 @@ import numpy as np
 
 def wave1d_dalembert(f0: Callable[[np.ndarray], np.ndarray], x: np.ndarray,
                      t: float, c: float, length: float) -> np.ndarray:
-    """Reference displacement at coords ``x`` and time ``t``."""
+    """Reference displacement at coords ``x`` and time ``t``.
+
+    Parameters
+    ----------
+    f0 : Callable[[np.ndarray], np.ndarray]
+        Initial displacement profile ``f(x)``, evaluated on arrays.
+    x : np.ndarray
+        Spatial coordinates at which to evaluate the solution.
+    t : float
+        Time at which to evaluate the solution.
+    c : float
+        Wave propagation speed.
+    length : float
+        Length of the periodic spatial domain.
+
+    Returns
+    -------
+    np.ndarray
+        Displacement ``u(x, t)`` at the given coordinates.
+    """
     x = np.asarray(x, dtype=float)
     xm = np.mod(x - c * t, length)
     xp = np.mod(x + c * t, length)

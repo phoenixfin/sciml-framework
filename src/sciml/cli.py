@@ -11,10 +11,22 @@ from __future__ import annotations
 
 import argparse
 import os
+from typing import Optional, Sequence
 
 
 # ----------------------------------------------------------------------- SWE
-def _cmd_swe(args):
+def _cmd_swe(args: argparse.Namespace) -> None:
+    """Run the SWE / DeepONet example from parsed CLI arguments.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command-line arguments for the ``swe`` subcommand.
+
+    Returns
+    -------
+    None
+    """
     from .problems.swe.config import SWEConfig
     from .problems.swe import runners
     cfg = SWEConfig.load(args.config) if args.config else SWEConfig()
@@ -34,7 +46,18 @@ def _cmd_swe(args):
 
 
 # ---------------------------------------------------------------------- wave
-def _cmd_wave(args):
+def _cmd_wave(args: argparse.Namespace) -> None:
+    """Run the wave-obstacle / PINN example from parsed CLI arguments.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command-line arguments for the ``wave`` subcommand.
+
+    Returns
+    -------
+    None
+    """
     from .problems.wave_obstacle.config import WaveObstacleConfig
     from .problems.wave_obstacle import runners
     cfg = WaveObstacleConfig.load(args.config) if args.config else WaveObstacleConfig()
@@ -49,7 +72,18 @@ def _cmd_wave(args):
 
 
 # -------------------------------------------------------------------- dengue
-def _cmd_dengue(args):
+def _cmd_dengue(args: argparse.Namespace) -> None:
+    """Run the dengue / SINDy example from parsed CLI arguments.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command-line arguments for the ``dengue`` subcommand.
+
+    Returns
+    -------
+    None
+    """
     from .problems.epidemiology.config import EpiConfig
     from .problems.epidemiology import runners
     cfg = EpiConfig.load(args.config) if args.config else EpiConfig()
@@ -60,7 +94,13 @@ def _cmd_dengue(args):
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """Build the ``sciml`` argument parser (one subcommand per example)."""
+    """Build the ``sciml`` argument parser (one subcommand per example).
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        The configured top-level argument parser.
+    """
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--config", help="Path to a .yaml/.json config")
     common.add_argument("--out", help="Output directory (defaults to the config's)")
@@ -82,8 +122,18 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def main(argv=None) -> None:
-    """CLI entry point: parse ``argv`` and dispatch to the chosen subcommand."""
+def main(argv: Optional[Sequence[str]] = None) -> None:
+    """CLI entry point: parse ``argv`` and dispatch to the chosen subcommand.
+
+    Parameters
+    ----------
+    argv : Optional[Sequence[str]]
+        Argument vector to parse; uses ``sys.argv`` when ``None``.
+
+    Returns
+    -------
+    None
+    """
     args = build_parser().parse_args(argv)
     args.func(args)
 

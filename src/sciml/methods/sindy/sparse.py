@@ -10,6 +10,20 @@ def ridge_regression(Theta: np.ndarray, y: np.ndarray, alpha: float = 0.0) -> np
 
     ``alpha = 0`` reduces to ordinary least squares (via ``lstsq`` for
     stability). ``y`` may be 1D ``(m,)`` or 2D ``(m, k)``.
+
+    Parameters
+    ----------
+    Theta : np.ndarray
+        Feature matrix of shape ``(m, p)``.
+    y : np.ndarray
+        Target values of shape ``(m,)`` or ``(m, k)``.
+    alpha : float
+        Ridge penalty; ``alpha <= 0`` falls back to least squares.
+
+    Returns
+    -------
+    np.ndarray
+        The fitted coefficient vector/matrix.
     """
     Theta = np.asarray(Theta, dtype=float)
     y = np.asarray(y, dtype=float)
@@ -28,6 +42,25 @@ def stridge(Theta: np.ndarray, y: np.ndarray, threshold: float = 0.01,
     below ``threshold``, iterating until the active set stabilizes. Returns the
     coefficient vector ``xi`` of shape ``(n_features,)`` (1D target) or
     ``(n_features, k)`` (multi-target).
+
+    Parameters
+    ----------
+    Theta : np.ndarray
+        Feature matrix of shape ``(m, n_features)``.
+    y : np.ndarray
+        Target values of shape ``(m,)`` or ``(m, k)``.
+    threshold : float
+        Magnitude below which coefficients are zeroed each iteration.
+    alpha : float
+        Ridge penalty used in each inner fit.
+    max_iter : int
+        Maximum number of thresholding iterations.
+
+    Returns
+    -------
+    np.ndarray
+        The sparse coefficient vector ``(n_features,)`` or matrix
+        ``(n_features, k)``.
     """
     Theta = np.asarray(Theta, dtype=float)
     y = np.asarray(y, dtype=float)

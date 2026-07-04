@@ -4,7 +4,17 @@ from __future__ import annotations
 
 
 def set_paper_style(font_size: int = 8) -> None:
-    """Compact serif paper style used across the examples."""
+    """Apply the compact serif paper style used across the examples.
+
+    Parameters
+    ----------
+    font_size : int
+        Base font size; tick/legend sizes are derived from it.
+
+    Returns
+    -------
+    None
+    """
     import matplotlib
     matplotlib.rcParams.update({
         "font.family": "serif", "font.size": font_size,

@@ -12,7 +12,26 @@ import numpy as np
 
 def advection_diffusion_solution(u0: np.ndarray, c: float, nu: float, t: float,
                                  length: float = 1.0) -> np.ndarray:
-    """Solve periodic advection-diffusion from IC ``u0`` to time ``t``."""
+    """Solve periodic advection-diffusion from IC ``u0`` to time ``t``.
+
+    Parameters
+    ----------
+    u0 : np.ndarray
+        Initial condition sampled on the periodic grid.
+    c : float
+        Advection (transport) speed.
+    nu : float
+        Diffusion coefficient.
+    t : float
+        Time at which to evaluate the solution.
+    length : float
+        Length of the periodic spatial domain.
+
+    Returns
+    -------
+    np.ndarray
+        The field ``u(., t)`` on the same grid as ``u0``.
+    """
     u0 = np.asarray(u0, dtype=float)
     n = len(u0)
     k = 2 * np.pi * np.fft.fftfreq(n, d=length / n)
@@ -22,6 +41,25 @@ def advection_diffusion_solution(u0: np.ndarray, c: float, nu: float, t: float,
 
 def advection_diffusion_dataset(u0_batch: np.ndarray, c: float, nu: float, t: float,
                                 length: float = 1.0) -> np.ndarray:
-    """Apply the solution operator to a batch ``(n, grid) -> (n, grid)``."""
+    """Apply the solution operator to a batch ``(n, grid) -> (n, grid)``.
+
+    Parameters
+    ----------
+    u0_batch : np.ndarray
+        Batch of initial conditions with shape ``(n, grid)``.
+    c : float
+        Advection (transport) speed.
+    nu : float
+        Diffusion coefficient.
+    t : float
+        Time at which to evaluate the solution.
+    length : float
+        Length of the periodic spatial domain.
+
+    Returns
+    -------
+    np.ndarray
+        Batch of solution fields with shape ``(n, grid)`` as ``float32``.
+    """
     return np.stack([advection_diffusion_solution(u0_batch[i], c, nu, t, length)
                      for i in range(len(u0_batch))]).astype(np.float32)

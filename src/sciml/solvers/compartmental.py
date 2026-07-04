@@ -13,7 +13,22 @@ import numpy as np
 
 def rk4_integrate(rhs: Callable[[float, np.ndarray], np.ndarray],
                   y0: np.ndarray, t: np.ndarray) -> np.ndarray:
-    """Classic RK4 on the time grid ``t``. Returns ``(len(t), len(y0))``."""
+    """Classic RK4 on the time grid ``t``. Returns ``(len(t), len(y0))``.
+
+    Parameters
+    ----------
+    rhs : Callable[[float, np.ndarray], np.ndarray]
+        Right-hand side ``rhs(t, y)`` of the ODE system.
+    y0 : np.ndarray
+        Initial state vector.
+    t : np.ndarray
+        Time grid over which to integrate.
+
+    Returns
+    -------
+    np.ndarray
+        Integrated trajectory of shape ``(len(t), len(y0))``.
+    """
     y0 = np.asarray(y0, dtype=float)
     ys = np.empty((len(t), len(y0)), dtype=float)
     ys[0] = y0
@@ -59,6 +74,37 @@ def simulate_compartmental(model: str, N: float, I0: float, n_weeks: int,
     """Simulate SI/SIR/SIRS with time-varying ``beta(t)``.
 
     Returns a dict with ``t, S, I, R, N, beta_true, model``.
+
+    Parameters
+    ----------
+    model : str
+        Compartmental model to simulate, one of ``"SI"``, ``"SIR"`` or ``"SIRS"``.
+    N : float
+        Total population size.
+    I0 : float
+        Initial number of infected individuals.
+    n_weeks : int
+        Number of weekly time steps to simulate.
+    beta_fn : Callable[[float], float]
+        Time-varying transmission rate ``beta(t)``.
+    gamma : float
+        Recovery rate.
+    mu : float
+        Birth/death rate (used by SIRS).
+    omega : float
+        Immunity-waning rate (used by SIRS).
+    noise_std : float
+        Standard deviation (as a fraction of ``N``) of observation noise added
+        to the infected series; no noise is added when ``0``.
+    rng : np.random.Generator | None
+        Random generator for the noise draw; falls back to ``np.random`` when
+        ``None``.
+
+    Returns
+    -------
+    Dict[str, np.ndarray]
+        Dictionary with keys ``t``, ``S``, ``I``, ``R``, ``N``, ``beta_true``
+        and ``model``.
     """
     t = np.arange(n_weeks, dtype=float)
     y0 = ([N - I0, I0] if model == "SI" else [N - I0, I0, 0.0])

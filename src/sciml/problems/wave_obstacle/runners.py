@@ -41,7 +41,24 @@ def _run_phase(trainer: PINNTrainer, prob: WaveObstacleProblem, phase, *, verbos
 def train(cfg: Optional[WaveObstacleConfig] = None, *, lbfgs: bool = True,
           out_dir: Optional[str] = None, verbose: bool = True
           ) -> Tuple[WaveObstacleProblem, PINNTrainer]:
-    """Train the PINN through the Adam phases (+ optional L-BFGS). Returns (problem, trainer)."""
+    """Train the PINN through the Adam phases (+ optional L-BFGS). Returns (problem, trainer).
+
+    Parameters
+    ----------
+    cfg : Optional[WaveObstacleConfig]
+        Configuration; a default is used if ``None``.
+    lbfgs : bool
+        Whether to run the L-BFGS refinement phase after Adam.
+    out_dir : Optional[str]
+        Directory to save the trained weights; not saved if ``None``.
+    verbose : bool
+        Whether to log progress information.
+
+    Returns
+    -------
+    Tuple[WaveObstacleProblem, PINNTrainer]
+        The trained problem instance and its trainer.
+    """
     cfg = cfg or WaveObstacleConfig()
     seed_everything(cfg.train.seed)
     prob = WaveObstacleProblem(cfg)
@@ -74,7 +91,20 @@ def train(cfg: Optional[WaveObstacleConfig] = None, *, lbfgs: bool = True,
 
 
 def field_error(prob: WaveObstacleProblem, nh: int = 80) -> Tuple[float, np.ndarray, np.ndarray]:
-    """Relative L2 field error e_u against the FDM reference (and the two fields)."""
+    """Relative L2 field error e_u against the FDM reference (and the two fields).
+
+    Parameters
+    ----------
+    prob : WaveObstacleProblem
+        The trained problem providing the PINN networks.
+    nh : int
+        Number of points in the height (spatial) direction per snapshot.
+
+    Returns
+    -------
+    Tuple[float, np.ndarray, np.ndarray]
+        The relative L2 field error (percent) and the PINN and reference fields.
+    """
     import tensorflow as tf
     ref = prob.reference(n_snaps=100)
     n_t = len(ref["t"])
@@ -96,7 +126,24 @@ def field_error(prob: WaveObstacleProblem, nh: int = 80) -> Tuple[float, np.ndar
 
 def evaluate(prob: WaveObstacleProblem, trainer: Optional[PINNTrainer] = None,
              out_dir: str = "outputs/wave_obstacle", verbose: bool = True) -> Dict:
-    """Compute e_s/e_u and amplitude/frequency metrics, save an overview figure."""
+    """Compute e_s/e_u and amplitude/frequency metrics, save an overview figure.
+
+    Parameters
+    ----------
+    prob : WaveObstacleProblem
+        The trained problem to evaluate.
+    trainer : Optional[PINNTrainer]
+        The trainer whose loss history is plotted, if provided.
+    out_dir : str
+        Directory in which to save the overview figure and metrics.
+    verbose : bool
+        Whether to log the computed metrics.
+
+    Returns
+    -------
+    Dict
+        The evaluation metrics dictionary.
+    """
     set_paper_style()
     os.makedirs(out_dir, exist_ok=True)
     metrics = prob.evaluate()

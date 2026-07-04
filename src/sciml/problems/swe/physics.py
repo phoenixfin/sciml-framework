@@ -6,13 +6,44 @@ residual + BC (no data) collapses to the trivial ``F=0`` state.
 
 from __future__ import annotations
 
+from typing import Callable
+
 import tensorflow as tf
 
 from ...tf_utils import grid_interp
 
 
-def pde_residual_fd(model, h0b, bb, h0g, bg, xc, tc, L, eps_fd: float = 1e-3):
-    """Mean-squared SWE residual via central finite differences (4 extra fwd passes)."""
+def pde_residual_fd(model: tf.keras.Model, h0b: tf.Tensor, bb: tf.Tensor, h0g: tf.Tensor,
+                    bg: tf.Tensor, xc: tf.Tensor, tc: tf.Tensor, L: float,
+                    eps_fd: float = 1e-3) -> tf.Tensor:
+    """Mean-squared SWE residual via central finite differences (4 extra fwd passes).
+
+    Parameters
+    ----------
+    model : tf.keras.Model
+        The SWE DeepONet model.
+    h0b : tf.Tensor
+        Initial-depth sensor values for the batch.
+    bb : tf.Tensor
+        Bathymetry sensor values for the batch.
+    h0g : tf.Tensor
+        Initial depth on the interpolation grid.
+    bg : tf.Tensor
+        Bathymetry on the interpolation grid.
+    xc : tf.Tensor
+        Collocation x-coordinates.
+    tc : tf.Tensor
+        Collocation t-coordinates.
+    L : float
+        Domain length (period) for grid interpolation.
+    eps_fd : float
+        Finite-difference step size.
+
+    Returns
+    -------
+    tf.Tensor
+        The scalar mean-squared PDE residual.
+    """
     eps = tf.constant(eps_fd, tf.float32)
 
     def fwd(xq, tq):
@@ -27,9 +58,31 @@ def pde_residual_fd(model, h0b, bb, h0g, bg, xc, tc, L, eps_fd: float = 1e-3):
     return tf.reduce_mean((dh_dt + dhu_dx) ** 2 + dhu_dt ** 2)
 
 
-def make_pi_step(model, optimizer, L, lam_pde: float = 1.0, lam_bc: float = 5.0,
-                 grad_clip: float = 1.0):
-    """Physics-informed step: FD-PDE residual + periodic BC, no data loss."""
+def make_pi_step(model: tf.keras.Model, optimizer: tf.keras.optimizers.Optimizer, L: float,
+                 lam_pde: float = 1.0, lam_bc: float = 5.0,
+                 grad_clip: float = 1.0) -> Callable:
+    """Physics-informed step: FD-PDE residual + periodic BC, no data loss.
+
+    Parameters
+    ----------
+    model : tf.keras.Model
+        The SWE DeepONet model to train.
+    optimizer : tf.keras.optimizers.Optimizer
+        Optimizer applying the gradient updates.
+    L : float
+        Domain length (period) for grid interpolation and boundary conditions.
+    lam_pde : float
+        Weight on the PDE-residual loss term.
+    lam_bc : float
+        Weight on the periodic boundary-condition loss term.
+    grad_clip : float
+        Global-norm gradient-clipping threshold.
+
+    Returns
+    -------
+    Callable
+        A ``step`` function performing one physics-informed optimization step.
+    """
     lp = tf.constant(lam_pde, tf.float32)
     lbc = tf.constant(lam_bc, tf.float32)
     L = tf.constant(float(L), tf.float32)

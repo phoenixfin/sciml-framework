@@ -18,9 +18,26 @@ from ...core.logging import get_logger
 _log = get_logger(__name__)
 
 
-def causal_weight(tau, eps_causal, t_final):
-    """Causal training weight ``exp(-eps_causal * tau / T)`` (down-weights late
-    times until earlier ones are learned). Works on numpy or TF tensors."""
+def causal_weight(tau: "object", eps_causal: float, t_final: float) -> "object":
+    """Causal training weight ``exp(-eps_causal * tau / T)``.
+
+    Down-weights late times until earlier ones are learned. Works on numpy or
+    TF tensors.
+
+    Parameters
+    ----------
+    tau : object
+        Time (or array of times) at which to evaluate the weight.
+    eps_causal : float
+        Causality strength; larger values down-weight late times more.
+    t_final : float
+        Final time ``T`` used to normalize ``tau``.
+
+    Returns
+    -------
+    object
+        The causal weight, matching the type/shape of ``tau``.
+    """
     import tensorflow as tf
     return tf.exp(-eps_causal * tau / t_final)
 
@@ -28,7 +45,16 @@ def causal_weight(tau, eps_causal, t_final):
 class PINNTrainer:
     """Drive Adam phases and an optional L-BFGS phase over a variable list."""
 
-    def __init__(self, variables, loss_fn: Callable[[], "object"]):
+    def __init__(self, variables: "object", loss_fn: Callable[[], "object"]):
+        """Store the trainable variables and the scalar loss function.
+
+        Parameters
+        ----------
+        variables : object
+            Iterable of trainable variables to optimize.
+        loss_fn : Callable[[], "object"]
+            Callable returning the scalar loss tensor to minimize.
+        """
         self.variables = list(variables)
         self.loss_fn = loss_fn
         self.history: List[float] = []
@@ -37,11 +63,27 @@ class PINNTrainer:
 
     # -- flat weight (de)serialization -----------------------------------
     def get_weights(self) -> np.ndarray:
-        """Return all trainable variables flattened into one float64 vector."""
+        """Return all trainable variables flattened into one float64 vector.
+
+        Returns
+        -------
+        np.ndarray
+            The concatenated, flattened variable values as float64.
+        """
         return np.concatenate([v.numpy().ravel() for v in self.variables]).astype(np.float64)
 
     def set_weights(self, w: np.ndarray) -> None:
-        """Assign a flat float64 vector ``w`` back into the trainable variables."""
+        """Assign a flat float64 vector ``w`` back into the trainable variables.
+
+        Parameters
+        ----------
+        w : np.ndarray
+            Flat float64 vector of variable values to assign.
+
+        Returns
+        -------
+        None
+        """
         idx = 0
         for v in self.variables:
             n = v.numpy().size
@@ -49,6 +91,19 @@ class PINNTrainer:
             idx += n
 
     def _update_best(self, loss_val: float, weights: Optional[np.ndarray] = None) -> None:
+        """Track the best loss so far and its associated weights.
+
+        Parameters
+        ----------
+        loss_val : float
+            The current loss value.
+        weights : Optional[np.ndarray]
+            Weights to store if this is a new best (defaults to current weights).
+
+        Returns
+        -------
+        None
+        """
         if loss_val < self.best_loss:
             self.best_loss = loss_val
             self.best_weights = weights if weights is not None else self.get_weights()
@@ -57,12 +112,37 @@ class PINNTrainer:
     def run_adam(self, n_steps: int, lr: float, *,
                  on_step: Optional[Callable[[int], None]] = None,
                  print_every: int = 500, verbose: bool = True) -> None:
-        """Run ``n_steps`` Adam steps; ``on_step(step)`` runs before each (scheduling/RAR)."""
+        """Run ``n_steps`` Adam steps; ``on_step(step)`` runs before each (scheduling/RAR).
+
+        Parameters
+        ----------
+        n_steps : int
+            Number of Adam optimization steps.
+        lr : float
+            Learning rate for the Adam optimizer.
+        on_step : Optional[Callable[[int], None]]
+            Callback run before each step (e.g. scheduling or resampling).
+        print_every : int
+            Log progress every this many steps.
+        verbose : bool
+            Whether to emit progress log messages.
+
+        Returns
+        -------
+        None
+        """
         import tensorflow as tf
         opt = tf.keras.optimizers.Adam(lr)
 
         @tf.function
-        def train_step():
+        def train_step() -> "object":
+            """Run one Adam step and return the loss.
+
+            Returns
+            -------
+            object
+                The scalar loss tensor for this step.
+            """
             with tf.GradientTape() as tape:
                 total = self.loss_fn()
             opt.apply_gradients(zip(tape.gradient(total, self.variables), self.variables))
@@ -82,7 +162,30 @@ class PINNTrainer:
     # -- L-BFGS (SciPy) --------------------------------------------------
     def run_lbfgs(self, maxiter: int = 6000, *, restart_from_best: bool = False,
                   ftol: float = 1e-16, gtol: float = 1e-11, verbose: bool = True) -> None:
-        """Refine with SciPy L-BFGS-B; optionally restart from the best-so-far weights."""
+        """Refine with SciPy L-BFGS-B; optionally restart from the best-so-far weights.
+
+        Parameters
+        ----------
+        maxiter : int
+            Maximum number of L-BFGS-B iterations.
+        restart_from_best : bool
+            Whether to reset to the best-so-far weights before optimizing.
+        ftol : float
+            Function-value tolerance passed to L-BFGS-B.
+        gtol : float
+            Gradient tolerance passed to L-BFGS-B.
+        verbose : bool
+            Whether to emit progress log messages.
+
+        Returns
+        -------
+        None
+
+        Raises
+        ------
+        ImportError
+            If SciPy is not installed.
+        """
         try:
             from scipy.optimize import minimize
         except ImportError as exc:  # pragma: no cover
@@ -93,7 +196,19 @@ class PINNTrainer:
         if restart_from_best and self.best_weights is not None:
             self.set_weights(self.best_weights)
 
-        def loss_and_grad(w):
+        def loss_and_grad(w: np.ndarray) -> tuple:
+            """Evaluate the loss and its flat gradient at weight vector ``w``.
+
+            Parameters
+            ----------
+            w : np.ndarray
+                Flat float64 weight vector to evaluate at.
+
+            Returns
+            -------
+            tuple
+                The scalar loss value and its flat float64 gradient.
+            """
             self.set_weights(w)
             with tf.GradientTape() as tape:
                 total = self.loss_fn()

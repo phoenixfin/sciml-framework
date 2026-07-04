@@ -8,7 +8,7 @@ weighting), the RAR residual evaluator, and the FDM-reference evaluation.
 from __future__ import annotations
 
 import math
-from typing import Dict, Optional, Tuple
+from typing import Callable, Dict, Optional, Tuple
 
 import numpy as np
 import tensorflow as tf
@@ -25,7 +25,25 @@ class _NsWithHint(keras.Model):
     """Ns(tau) with a frequency hint ``[tau, cos(w tau), sin(w tau)]`` and a
     sigmoid output rescaled to ``[s_lo, s_hi]``."""
 
-    def __init__(self, omega, s_lo, s_hi, hidden=5, width=96, **kw):
+    def __init__(self, omega: float, s_lo: float, s_hi: float, hidden: int = 5,
+                 width: int = 96, **kw: object):
+        """Build the free-boundary network with a frequency hint and scaled output.
+
+        Parameters
+        ----------
+        omega : float
+            Angular frequency used to build the ``[cos, sin]`` frequency hint.
+        s_lo : float
+            Lower bound of the scaled sigmoid output.
+        s_hi : float
+            Upper bound of the scaled sigmoid output.
+        hidden : int
+            Number of hidden dense layers.
+        width : int
+            Width of each hidden dense layer.
+        **kw : object
+            Extra keyword arguments forwarded to :class:`keras.Model`.
+        """
         super().__init__(**kw)
         self.omega = float(omega)
         self.dense_layers = [keras.layers.Dense(width, "tanh",
@@ -46,6 +64,13 @@ class WaveObstacleProblem(Problem):
     name = "wave_obstacle"
 
     def __init__(self, config: Optional[WaveObstacleConfig] = None):
+        """Initialize physical parameters, derived quantities and the two networks.
+
+        Parameters
+        ----------
+        config : Optional[WaveObstacleConfig]
+            Problem configuration; a default is used if ``None``.
+        """
         super().__init__(config or WaveObstacleConfig())
         p = self.config.params
         self.b, self.a_bc, self.eps, self.delta, self.T = p.b, p.a_bc, p.eps, p.delta, p.t_final
@@ -76,16 +101,49 @@ class WaveObstacleProblem(Problem):
 
     # -- analytic / reference --------------------------------------------
     def s_analytic(self, tau: np.ndarray) -> np.ndarray:
-        """Analytic free-boundary position ``s(tau)``."""
+        """Analytic free-boundary position ``s(tau)``.
+
+        Parameters
+        ----------
+        tau : np.ndarray
+            Times at which to evaluate the free boundary.
+
+        Returns
+        -------
+        np.ndarray
+            The analytic free-boundary position at ``tau``.
+        """
         tau = np.asarray(tau, dtype=np.float32)
         return (self.s_y + self.eps * self.A_sv * np.cos(self.omega * tau)).astype(np.float32)
 
     def u_stationary(self, xbar: np.ndarray) -> np.ndarray:
-        """Stationary (equilibrium) displacement profile ``u_bar(xbar)``."""
+        """Stationary (equilibrium) displacement profile ``u_bar(xbar)``.
+
+        Parameters
+        ----------
+        xbar : np.ndarray
+            Spatial coordinates in the fixed reference frame.
+
+        Returns
+        -------
+        np.ndarray
+            The equilibrium displacement at ``xbar``.
+        """
         return self.a_bc + (np.asarray(xbar) - 1.0) * self.c_slope
 
     def reference(self, n_snaps: int = 150) -> Dict:
-        """FDM reference solution (space-time snapshots) for evaluation."""
+        """FDM reference solution (space-time snapshots) for evaluation.
+
+        Parameters
+        ----------
+        n_snaps : int
+            Number of time snapshots in the reference solution.
+
+        Returns
+        -------
+        Dict
+            The FDM reference snapshots (time, boundary and field arrays).
+        """
         return wave_moving_boundary_fdm(
             self.s_analytic, self.u_stationary, self.s_y, delta=self.delta,
             t_final=self.T, nx=self.config.train.fdm_nx, n_snaps=n_snaps)
@@ -95,8 +153,21 @@ class WaveObstacleProblem(Problem):
         """Combined trainable variables of the ``Nu`` and ``Ns`` networks."""
         return self.Nu.trainable_variables + self.Ns.trainable_variables
 
-    def domain_mask(self, xbar, s_tau):
-        """Soft sigmoid mask (~1 inside the domain, ~0 inside the obstacle region)."""
+    def domain_mask(self, xbar: tf.Tensor, s_tau: tf.Tensor) -> tf.Tensor:
+        """Soft sigmoid mask (~1 inside the domain, ~0 inside the obstacle region).
+
+        Parameters
+        ----------
+        xbar : tf.Tensor
+            Spatial coordinates.
+        s_tau : tf.Tensor
+            Free-boundary positions at the corresponding times.
+
+        Returns
+        -------
+        tf.Tensor
+            The soft domain-membership mask.
+        """
         return tf.sigmoid((xbar - s_tau) / self.mask_eps)
 
     # -- loss -------------------------------------------------------------
@@ -105,8 +176,14 @@ class WaveObstacleProblem(Problem):
         """Names of the nine loss components returned by the loss function."""
         return ["pde", "excl", "bcd", "bcn", "bcr", "icu", "icv", "s0", "sv"]
 
-    def make_loss(self):
-        """Return a ``loss_components()`` tf.function returning (total, *components)."""
+    def make_loss(self) -> Callable:
+        """Return a ``loss_components()`` tf.function returning (total, *components).
+
+        Returns
+        -------
+        Callable
+            The compiled ``loss_components`` function.
+        """
         cfg = self.config
         lc = cfg.loss
         w = lc.weights
@@ -191,8 +268,19 @@ class WaveObstacleProblem(Problem):
         return loss_components
 
     # -- RAR --------------------------------------------------------------
-    def pde_residuals(self, n_sample: int = 3000):
-        """Evaluate PDE residuals on points in the valid domain (for RAR)."""
+    def pde_residuals(self, n_sample: int = 3000) -> Tuple:
+        """Evaluate PDE residuals on points in the valid domain (for RAR).
+
+        Parameters
+        ----------
+        n_sample : int
+            Number of random collocation points to sample.
+
+        Returns
+        -------
+        Tuple
+            The sampled ``xbar``, ``tau`` and squared-residual arrays.
+        """
         tau_s = np.random.uniform(0, self.T, (n_sample, 1)).astype(np.float32)
         s_est = self.Ns(tau_s).numpy()
         xi_s = np.random.uniform(0, 1, (n_sample, 1)).astype(np.float32)
@@ -210,18 +298,47 @@ class WaveObstacleProblem(Problem):
         res = tf.square(uxx - utt).numpy().flatten()
         return xbar_s.flatten(), tau_s.flatten(), res
 
-    def assign_collocation(self, xbar: np.ndarray, tau: np.ndarray):
-        """Overwrite the PDE collocation buffers (used by RAR resampling)."""
+    def assign_collocation(self, xbar: np.ndarray, tau: np.ndarray) -> None:
+        """Overwrite the PDE collocation buffers (used by RAR resampling).
+
+        Parameters
+        ----------
+        xbar : np.ndarray
+            New collocation x-coordinates.
+        tau : np.ndarray
+            New collocation times.
+
+        Returns
+        -------
+        None
+        """
         self._xbar_buf.assign(xbar.reshape(-1, 1).astype(np.float32))
         self._tau_buf.assign(tau.reshape(-1, 1).astype(np.float32))
 
-    def current_collocation(self):
-        """Return the current PDE collocation points ``(xbar, tau)`` as numpy arrays."""
+    def current_collocation(self) -> Tuple:
+        """Return the current PDE collocation points ``(xbar, tau)`` as numpy arrays.
+
+        Returns
+        -------
+        Tuple
+            The current collocation ``xbar`` and ``tau`` arrays.
+        """
         return self._xbar_buf.numpy(), self._tau_buf.numpy()
 
     # -- evaluation -------------------------------------------------------
     def evaluate(self, n_eval: int = 600) -> Dict[str, float]:
-        """Free-boundary error e_s and amplitude/frequency recovery."""
+        """Free-boundary error e_s and amplitude/frequency recovery.
+
+        Parameters
+        ----------
+        n_eval : int
+            Number of evaluation times over the time domain.
+
+        Returns
+        -------
+        Dict[str, float]
+            Free-boundary error and amplitude/frequency metrics.
+        """
         tau = np.linspace(0, self.T, n_eval, dtype=np.float32)
         s_pinn = self.Ns(tau[:, None]).numpy().flatten()
         s_ref = self.s_analytic(tau)
