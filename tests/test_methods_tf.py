@@ -22,7 +22,9 @@ def test_swe_ic_shortcut_exact_at_t0():
     xt0 = tf.constant(np.stack([np.linspace(0, 10, n), np.zeros(n)], 1).astype(np.float32))
     h0x = tf.constant((np.random.rand(4, n) + 0.5).astype(np.float32))
     h, hu = model(tf.zeros((4, 20)), tf.zeros((4, 20)), xt0, h0x, tf.zeros((4, n)))
-    assert float(tf.reduce_max(tf.abs(h - h0x))) < 1e-5
+    # The IC shortcut reproduces h0 exactly up to the positivity constant EPS
+    # (h(x, 0) = h0(x) + eps), so allow a tolerance of a few * eps.
+    assert float(tf.reduce_max(tf.abs(h - h0x))) < 3 * float(model.eps)
     assert float(tf.reduce_max(tf.abs(hu))) < 1e-6
 
 
