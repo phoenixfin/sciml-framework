@@ -60,6 +60,7 @@ def _cmd_dengue(args):
 
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the ``sciml`` argument parser (one subcommand per example)."""
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--config", help="Path to a .yaml/.json config")
     common.add_argument("--out", help="Output directory (defaults to the config's)")
@@ -82,6 +83,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv=None) -> None:
+    """CLI entry point: parse ``argv`` and dispatch to the chosen subcommand."""
     args = build_parser().parse_args(argv)
     args.func(args)
 

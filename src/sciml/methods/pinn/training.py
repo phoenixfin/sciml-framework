@@ -37,9 +37,11 @@ class PINNTrainer:
 
     # -- flat weight (de)serialization -----------------------------------
     def get_weights(self) -> np.ndarray:
+        """Return all trainable variables flattened into one float64 vector."""
         return np.concatenate([v.numpy().ravel() for v in self.variables]).astype(np.float64)
 
     def set_weights(self, w: np.ndarray) -> None:
+        """Assign a flat float64 vector ``w`` back into the trainable variables."""
         idx = 0
         for v in self.variables:
             n = v.numpy().size
@@ -55,6 +57,7 @@ class PINNTrainer:
     def run_adam(self, n_steps: int, lr: float, *,
                  on_step: Optional[Callable[[int], None]] = None,
                  print_every: int = 500, verbose: bool = True) -> None:
+        """Run ``n_steps`` Adam steps; ``on_step(step)`` runs before each (scheduling/RAR)."""
         import tensorflow as tf
         opt = tf.keras.optimizers.Adam(lr)
 
@@ -79,6 +82,7 @@ class PINNTrainer:
     # -- L-BFGS (SciPy) --------------------------------------------------
     def run_lbfgs(self, maxiter: int = 6000, *, restart_from_best: bool = False,
                   ftol: float = 1e-16, gtol: float = 1e-11, verbose: bool = True) -> None:
+        """Refine with SciPy L-BFGS-B; optionally restart from the best-so-far weights."""
         try:
             from scipy.optimize import minimize
         except ImportError as exc:  # pragma: no cover

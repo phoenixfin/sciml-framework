@@ -41,6 +41,7 @@ def _run_phase(trainer: PINNTrainer, prob: WaveObstacleProblem, phase, *, verbos
 def train(cfg: Optional[WaveObstacleConfig] = None, *, lbfgs: bool = True,
           out_dir: Optional[str] = None, verbose: bool = True
           ) -> Tuple[WaveObstacleProblem, PINNTrainer]:
+    """Train the PINN through the Adam phases (+ optional L-BFGS). Returns (problem, trainer)."""
     cfg = cfg or WaveObstacleConfig()
     seed_everything(cfg.train.seed)
     prob = WaveObstacleProblem(cfg)
@@ -95,6 +96,7 @@ def field_error(prob: WaveObstacleProblem, nh: int = 80) -> Tuple[float, np.ndar
 
 def evaluate(prob: WaveObstacleProblem, trainer: Optional[PINNTrainer] = None,
              out_dir: str = "outputs/wave_obstacle", verbose: bool = True) -> Dict:
+    """Compute e_s/e_u and amplitude/frequency metrics, save an overview figure."""
     set_paper_style()
     os.makedirs(out_dir, exist_ok=True)
     metrics = prob.evaluate()

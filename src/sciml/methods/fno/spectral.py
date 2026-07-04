@@ -20,6 +20,7 @@ class SpectralConv1D(keras.layers.Layer):
         self.modes = modes
 
     def build(self, input_shape):
+        """Create the learned complex weights (real/imag parts) for each mode."""
         in_ch = int(input_shape[-1])
         scale = 1.0 / (in_ch * self.out_channels)
         init = keras.initializers.RandomUniform(-scale, scale)
@@ -29,6 +30,7 @@ class SpectralConv1D(keras.layers.Layer):
             name="w_imag", shape=(in_ch, self.out_channels, self.modes), initializer=init)
 
     def call(self, x):
+        """Apply the spectral convolution to ``x`` ``(B, N, C)`` -> ``(B, N, O)``."""
         n = tf.shape(x)[1]
         x_t = tf.transpose(x, [0, 2, 1])                  # (B, in_ch, N)
         x_ft = tf.signal.rfft(x_t)                        # (B, in_ch, N//2+1) complex
@@ -41,6 +43,7 @@ class SpectralConv1D(keras.layers.Layer):
         return tf.transpose(out, [0, 2, 1])               # (B, N, out_ch)
 
     def get_config(self):
+        """Return the serializable layer configuration."""
         cfg = super().get_config()
         cfg.update({"out_channels": self.out_channels, "modes": self.modes})
         return cfg
@@ -62,6 +65,7 @@ class SpectralConv2D(keras.layers.Layer):
         self.modes2 = modes2
 
     def build(self, input_shape):
+        """Read the fixed grid size and create the two corner-block weight sets."""
         in_ch = int(input_shape[-1])
         self.H = int(input_shape[1])
         self.W = int(input_shape[2])
@@ -75,6 +79,7 @@ class SpectralConv2D(keras.layers.Layer):
         self.w2_imag = self.add_weight(name="w2_imag", shape=shape, initializer=init)
 
     def call(self, x):
+        """Apply the 2D spectral convolution to ``x`` ``(B, H, W, C)`` -> ``(B, H, W, O)``."""
         m1, m2 = self.modes1, self.modes2
         x_t = tf.transpose(x, [0, 3, 1, 2])               # (B, C, H, W)
         x_ft = tf.signal.rfft2d(x_t)                      # (B, C, H, Wf) complex
@@ -92,6 +97,7 @@ class SpectralConv2D(keras.layers.Layer):
         return tf.transpose(out, [0, 2, 3, 1])            # (B, H, W, O)
 
     def get_config(self):
+        """Return the serializable layer configuration."""
         cfg = super().get_config()
         cfg.update({"out_channels": self.out_channels,
                     "modes1": self.modes1, "modes2": self.modes2})

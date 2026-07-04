@@ -10,6 +10,7 @@ from ...core.metrics import rel_l2
 
 
 def case_errors(xs_p, h_p, hu_p, ts_p, x_ref, snaps, t_eval: float = 1.0) -> Tuple[float, float]:
+    """Relative L2 errors of ``h`` and ``hu`` at time ``t_eval`` against the reference."""
     t_arr = np.array(snaps["t"])
     ri = int(np.argmin(np.abs(t_arr - t_eval)))
     pi = int(np.argmin(np.abs(ts_p - t_eval)))

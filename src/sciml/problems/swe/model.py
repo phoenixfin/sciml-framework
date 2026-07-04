@@ -41,6 +41,7 @@ class SWEDeepONet(tf.keras.Model):
         self.eps = tf.constant(eps, tf.float32)
 
     def call(self, h0s, bs, xt, h0_at_x, b_at_x):
+        """Predict ``(h, hu)`` at query points ``xt`` given sensor and pointwise inputs."""
         t = tf.transpose(xt[:, 1:2])
         F_h = self.h_op([h0s, bs], xt)
         F_hu = self.hu_op([h0s, bs], xt)
@@ -66,6 +67,7 @@ class SharedBranchSWEDeepONet(tf.keras.Model):
         self.eps = tf.constant(eps, tf.float32)
 
     def call(self, h0s, bs, xt, h0_at_x, b_at_x):
+        """Predict ``(h, hu)`` using a single shared branch coefficient for both fields."""
         t = tf.transpose(xt[:, 1:2])
         beta = self.b1(h0s) + self.b2(bs)
         F_h = tf.linalg.matmul(beta, self.th(xt), transpose_b=True)
@@ -94,6 +96,7 @@ class NoICShortcutSWEDeepONet(tf.keras.Model):
             make_mlp(2, hid, width, "thu_noic", out_std=out_std), name="hu_op_noic")
 
     def call(self, h0s, bs, xt, h0_at_x, b_at_x):
+        """Predict ``(h, hu)`` as raw operator outputs (no IC shortcut applied)."""
         return self.h_op([h0s, bs], xt), self.hu_op([h0s, bs], xt)
 
 
@@ -105,6 +108,7 @@ VARIANTS = {
 
 
 def warmup(model: tf.keras.Model, n_sensors: int) -> tf.keras.Model:
+    """Build the model's weights with one dummy forward pass and return it."""
     d = tf.zeros((2, n_sensors))
     model(d, d, tf.zeros((4, 2)), tf.ones((2, 4)), tf.zeros((2, 4)))
     return model

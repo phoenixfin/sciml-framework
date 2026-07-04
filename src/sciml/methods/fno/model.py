@@ -20,9 +20,11 @@ class FNOBlock(keras.layers.Layer):
         self.pointwise = keras.layers.Conv1D(width, 1)
 
     def call(self, x):
+        """Spectral-conv path plus a pointwise residual path, then activation."""
         return self.activation(self.spec(x) + self.pointwise(x))
 
     def get_config(self):
+        """Return the serializable layer configuration."""
         cfg = super().get_config()
         cfg.update({"width": self.width, "modes": self.modes})
         return cfg
@@ -59,6 +61,7 @@ class FNOBlock2D(keras.layers.Layer):
         self.pointwise = keras.layers.Conv2D(width, 1)
 
     def call(self, x):
+        """2D spectral-conv path plus a pointwise residual path, then activation."""
         return self.activation(self.spec(x) + self.pointwise(x))
 
 

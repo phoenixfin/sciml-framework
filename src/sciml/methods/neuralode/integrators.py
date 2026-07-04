@@ -9,10 +9,12 @@ import tensorflow as tf
 
 
 def euler_step(func: Callable, t: float, y: tf.Tensor, dt: float) -> tf.Tensor:
+    """Single explicit-Euler step ``y + dt * func(t, y)``."""
     return y + dt * func(t, y)
 
 
 def rk4_step(func: Callable, t: float, y: tf.Tensor, dt: float) -> tf.Tensor:
+    """Single classic fourth-order Runge-Kutta step."""
     k1 = func(t, y)
     k2 = func(t + dt / 2, y + dt / 2 * k1)
     k3 = func(t + dt / 2, y + dt / 2 * k2)

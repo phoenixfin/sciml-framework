@@ -23,6 +23,7 @@ _log = get_logger(__name__)
 
 
 def prepare_problem(cfg: SWEConfig, *, verbose: bool = True) -> SWEProblem:
+    """Build a problem, its GP pool and supervised dataset from a config."""
     prob = SWEProblem(cfg)
     prob.prepare(seed=cfg.train.seed)
     if verbose:
@@ -38,6 +39,7 @@ def _optimizer(cfg: SWEConfig):
 def train(cfg: SWEConfig, prob: Optional[SWEProblem] = None, *, variant: str = "full",
           ckpt_dir: Optional[str] = None, weights_path: Optional[str] = None,
           verbose: bool = True) -> Tuple[object, object, SWEProblem]:
+    """Train a model (optionally saving weights). Returns ``(model, history, problem)``."""
     seed_everything(cfg.train.seed)
     prob = prob or prepare_problem(cfg, verbose=verbose)
     model = prob.build_model(variant)
@@ -59,6 +61,7 @@ def train(cfg: SWEConfig, prob: Optional[SWEProblem] = None, *, variant: str = "
 
 def evaluate_cases(prob: SWEProblem, model, out_dir: str = "outputs/swe",
                    verbose: bool = True) -> Dict[str, Dict[str, float]]:
+    """Evaluate cases C1/C2/C3, save per-case figures, and return their errors."""
     set_paper_style()
     os.makedirs(out_dir, exist_ok=True)
     results: Dict[str, Dict[str, float]] = {}
@@ -77,6 +80,7 @@ def evaluate_cases(prob: SWEProblem, model, out_dir: str = "outputs/swe",
 def generalization(prob: SWEProblem, model, n_test: Optional[int] = None,
                    out_dir: str = "outputs/swe", seed: int = 0,
                    verbose: bool = True) -> Dict[str, float]:
+    """Operator generalization over ``n_test`` unseen periodic pairs (case C4)."""
     n_test = n_test if n_test is not None else prob.config.data.n_test
     np.random.seed(seed)
     H0_test = prob.h0_sampler.sample(prob.x_sensors, n_test)
@@ -118,4 +122,5 @@ def _generalization_fig(errs_h, errs_hu, out_dir):
 
 
 def save_results(results: Dict, path: str) -> None:
+    """Write a results dict to ``path`` as JSON."""
     save_json(results, path)

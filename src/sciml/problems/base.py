@@ -16,6 +16,8 @@ from ..core.config import ConfigBase
 
 
 class Problem(ABC):
+    """Base for problem definitions: holds a config and yields a reference solution."""
+
     name: str = "problem"
 
     def __init__(self, config: ConfigBase):

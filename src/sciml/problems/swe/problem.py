@@ -24,6 +24,8 @@ from .model import VARIANTS, warmup
 
 
 class SWEProblem(Problem):
+    """SWE task wired to the DeepONet engine (GP pool, dataset, training steps)."""
+
     name = "swe"
 
     def __init__(self, config: Optional[SWEConfig] = None):
@@ -56,6 +58,7 @@ class SWEProblem(Problem):
 
     # -- data preparation -------------------------------------------------
     def prepare(self, seed: Optional[int] = None) -> "SWEProblem":
+        """Build the GP training pool (+ C1/C2 anchors) and precompute grid interpolations."""
         c = self.config
         if seed is not None:
             np.random.seed(seed)
@@ -78,11 +81,13 @@ class SWEProblem(Problem):
         return self
 
     def boundary_gap(self) -> float:
+        """Mean ``|h0(0) - h0(L)|`` over the GP pool (periodicity diagnostic)."""
         n_train = self.config.data.n_train
         return float(np.abs(self.H0_s[:n_train, 0] - self.H0_s[:n_train, -1]).mean())
 
     def generate_dataset(self, n_data_gp: Optional[int] = None,
                          verbose: bool = True) -> "SWEProblem":
+        """Run the reference solver on the supervised subset and stage TF tensors."""
         if self.H0_s is None:
             self.prepare()
         c = self.config
@@ -125,6 +130,7 @@ class SWEProblem(Problem):
                                   nt=c.data.solver_nt, t_out=self.t_snaps)
 
     def reference(self, h0_fn, b_fn, **kw):
+        """Lax-Friedrichs reference solution for arbitrary IC/bathymetry callables."""
         c = self.config
         kw.setdefault("length", self.L); kw.setdefault("t_final", self.T)
         kw.setdefault("gravity", self.g); kw.setdefault("nx", c.data.solver_nx)
@@ -133,6 +139,7 @@ class SWEProblem(Problem):
 
     # -- model + training step -------------------------------------------
     def build_model(self, variant: str = "full") -> tf.keras.Model:
+        """Build and warm up a model variant (``full`` / ``shared_branch`` / ``no_ic_shortcut``)."""
         if variant not in VARIANTS:
             raise ValueError(f"Unknown variant {variant!r}; choose {list(VARIANTS)}")
         c = self.config
@@ -144,10 +151,12 @@ class SWEProblem(Problem):
 
     @property
     def component_names(self) -> Sequence[str]:
+        """Names of the extra scalars returned by the training step (data/BC/grad-norm)."""
         return ["Ld", "Lb", "gnorm"]
 
     def make_step(self, model, optimizer, variant: str = "full",
                   lam_ic: float = 10.0) -> Callable[..., Tuple]:
+        """Build the ``@tf.function`` data+BC training step (adds an IC loss for A2)."""
         if not self._dataset_ready:
             raise RuntimeError("Call generate_dataset() before make_step().")
         c = self.config
@@ -190,6 +199,7 @@ class SWEProblem(Problem):
         return step
 
     def sample_batch(self, iteration: int) -> Tuple:
+        """Draw one uniform 9-tensor training batch (BC mini-batch + IC mini-batch)."""
         c = self.config
         batch = c.train.batch
         idx = np.random.choice(self.n_total, batch, replace=False)
@@ -207,6 +217,7 @@ class SWEProblem(Problem):
 
     # -- inference --------------------------------------------------------
     def predict_grid(self, model, h0_fn, b_fn, nx: int = 200, nt: int = 100):
+        """Predict ``(xs, ts, h, hu)`` on an ``nx x nt`` space-time grid."""
         h0_s = h0_fn(self.x_sensors).reshape(1, -1).astype(np.float32)
         b_s = b_fn(self.x_sensors).reshape(1, -1).astype(np.float32)
         xs = np.linspace(0, self.L, nx, dtype=np.float32)

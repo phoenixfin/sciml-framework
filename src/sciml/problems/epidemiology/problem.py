@@ -15,6 +15,8 @@ from .config import EpiConfig
 
 
 class EpiProblem(Problem):
+    """Dengue beta(t) identification: load/simulate data, reconstruct S(t), estimate beta."""
+
     name = "epidemiology"
 
     def __init__(self, config: Optional[EpiConfig] = None):
@@ -23,12 +25,14 @@ class EpiProblem(Problem):
         self.data: Optional[Dict] = None
 
     def beta_true(self) -> Callable[[float], float]:
+        """Return the seasonal ground-truth beta(t) callable (used for simulation)."""
         d = self.config.data
         return lambda t: d.beta_base + d.beta_amp * np.sin(
             2 * np.pi * (np.asarray(t) - d.beta_phase) / d.beta_period)
 
     # -- data -------------------------------------------------------------
     def load_or_simulate(self, *, rng: Optional[np.random.Generator] = None) -> Dict:
+        """Load a real weekly series or simulate one; store and return the raw data."""
         m, d = self.config.model, self.config.data
         if d.use_real:
             self.raw = self._load_real()
@@ -66,6 +70,7 @@ class EpiProblem(Problem):
                 "I_raw": df[d.infected_col].values.astype(float)}
 
     def reconstruct(self) -> Dict:
+        """Reconstruct S(t) (and R) via the configured method; store and return data."""
         if self.raw is None:
             self.load_or_simulate()
         m, e = self.config.model, self.config.estim
@@ -92,6 +97,7 @@ class EpiProblem(Problem):
 
     # -- estimation -------------------------------------------------------
     def estimate(self) -> Dict:
+        """Run the configured local + global beta(t) estimators; return their results."""
         if self.data is None:
             self.reconstruct()
         m, e = self.config.model, self.config.estim

@@ -15,6 +15,7 @@ def save_json(obj: Any, path: str) -> None:
 
 
 def load_json(path: str) -> Any:
+    """Load and return the JSON object stored at ``path``."""
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 

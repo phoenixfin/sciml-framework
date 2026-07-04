@@ -41,6 +41,8 @@ class _NsWithHint(keras.Model):
 
 
 class WaveObstacleProblem(Problem):
+    """Moving-boundary wave PINN: networks, derived parameters, loss, RAR and evaluation."""
+
     name = "wave_obstacle"
 
     def __init__(self, config: Optional[WaveObstacleConfig] = None):
@@ -74,27 +76,33 @@ class WaveObstacleProblem(Problem):
 
     # -- analytic / reference --------------------------------------------
     def s_analytic(self, tau: np.ndarray) -> np.ndarray:
+        """Analytic free-boundary position ``s(tau)``."""
         tau = np.asarray(tau, dtype=np.float32)
         return (self.s_y + self.eps * self.A_sv * np.cos(self.omega * tau)).astype(np.float32)
 
     def u_stationary(self, xbar: np.ndarray) -> np.ndarray:
+        """Stationary (equilibrium) displacement profile ``u_bar(xbar)``."""
         return self.a_bc + (np.asarray(xbar) - 1.0) * self.c_slope
 
     def reference(self, n_snaps: int = 150) -> Dict:
+        """FDM reference solution (space-time snapshots) for evaluation."""
         return wave_moving_boundary_fdm(
             self.s_analytic, self.u_stationary, self.s_y, delta=self.delta,
             t_final=self.T, nx=self.config.train.fdm_nx, n_snaps=n_snaps)
 
     @property
     def trainable_variables(self):
+        """Combined trainable variables of the ``Nu`` and ``Ns`` networks."""
         return self.Nu.trainable_variables + self.Ns.trainable_variables
 
     def domain_mask(self, xbar, s_tau):
+        """Soft sigmoid mask (~1 inside the domain, ~0 inside the obstacle region)."""
         return tf.sigmoid((xbar - s_tau) / self.mask_eps)
 
     # -- loss -------------------------------------------------------------
     @property
     def loss_component_names(self):
+        """Names of the nine loss components returned by the loss function."""
         return ["pde", "excl", "bcd", "bcn", "bcr", "icu", "icv", "s0", "sv"]
 
     def make_loss(self):
@@ -203,10 +211,12 @@ class WaveObstacleProblem(Problem):
         return xbar_s.flatten(), tau_s.flatten(), res
 
     def assign_collocation(self, xbar: np.ndarray, tau: np.ndarray):
+        """Overwrite the PDE collocation buffers (used by RAR resampling)."""
         self._xbar_buf.assign(xbar.reshape(-1, 1).astype(np.float32))
         self._tau_buf.assign(tau.reshape(-1, 1).astype(np.float32))
 
     def current_collocation(self):
+        """Return the current PDE collocation points ``(xbar, tau)`` as numpy arrays."""
         return self._xbar_buf.numpy(), self._tau_buf.numpy()
 
     # -- evaluation -------------------------------------------------------

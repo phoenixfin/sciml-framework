@@ -52,6 +52,7 @@ class DeepONetOperator(tf.keras.Model):
               width: int, hidden: Sequence[int], out_std: float = 0.1,
               use_bias: bool = False, name: str = "deeponet_operator"
               ) -> "DeepONetOperator":
+        """Construct an operator from scalar hyper-parameters (``n_branches`` MLPs + trunk)."""
         branches = [make_mlp(n_sensors, hidden, width, f"{name}_branch{i}", out_std=out_std)
                     for i in range(n_branches)]
         trunk = make_mlp(coord_dim, hidden, width, f"{name}_trunk", out_std=out_std)
@@ -65,11 +66,13 @@ class DeepONet(DeepONetOperator):
     def build(cls, *, n_sensors: int, coord_dim: int, width: int,
               hidden: Sequence[int], out_std: float = 0.1, use_bias: bool = True,
               name: str = "deeponet") -> "DeepONet":
+        """Construct a single-branch DeepONet from scalar hyper-parameters."""
         branch = make_mlp(n_sensors, hidden, width, f"{name}_branch", out_std=out_std)
         trunk = make_mlp(coord_dim, hidden, width, f"{name}_trunk", out_std=out_std)
         return cls([branch], trunk, use_bias=use_bias, name=name)
 
     def call(self, branch_input, coords):  # type: ignore[override]
+        """Evaluate the operator, accepting a bare tensor or a 1-element list."""
         if isinstance(branch_input, (list, tuple)):
             return super().call(branch_input, coords)
         return super().call([branch_input], coords)

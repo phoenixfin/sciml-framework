@@ -32,7 +32,8 @@ neuralode = ["tensorflow>=2.12,<2.17"]
 # LASSO regression and spreadsheet loading.
 sindy = ["scikit-learn>=1.1", "pandas>=1.5", "openpyxl>=3.0"]
 yaml = ["pyyaml>=6.0"]
-dev = ["pytest>=7.0", "pyyaml>=6.0"]
+dev = ["pytest>=7.0", "pyyaml>=6.0", "interrogate>=1.5", "pydocstyle>=6.0"]
+docs = ["pdoc>=14.0"]
 all = [
     "tensorflow>=2.12,<2.17", "scipy>=1.9",
     "scikit-learn>=1.1", "pandas>=1.5", "openpyxl>=3.0",
@@ -51,3 +52,18 @@ sciml = ["py.typed"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.interrogate]
+# Docstring-coverage gate for the public API (run: `interrogate src`).
+fail-under = 100
+ignore-init-method = true
+ignore-magic = true
+ignore-nested-functions = true
+ignore-private = true
+ignore-semiprivate = true
+exclude = ["experiments", "examples", "tests"]
+
+[tool.pydocstyle]
+# PEP 257 style; relax a few conventions that don't fit terse research code.
+convention = "pep257"
+add-ignore = "D105,D107,D203,D212,D401,D413"

@@ -21,15 +21,19 @@ def h0_dambreak(x: np.ndarray, center: float = 5.0, height: float = 1.5,
 
 
 def b_flat(x: np.ndarray) -> np.ndarray:
+    """Flat bed bathymetry (zeros)."""
     return np.zeros_like(x, dtype=np.float32)
 
 
 def b_bump(x: np.ndarray, center: float = 5.0, amp: float = 0.2) -> np.ndarray:
+    """Gaussian-bump bathymetry."""
     return (amp * np.exp(-(x - center) ** 2)).astype(np.float32)
 
 
 @dataclass(frozen=True)
 class Case:
+    """A named evaluation case: initial depth, bathymetry, description and plot color."""
+
     name: str
     h0: Callable[[np.ndarray], np.ndarray]
     bath: Callable[[np.ndarray], np.ndarray]

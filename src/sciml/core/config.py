@@ -22,6 +22,7 @@ class ConfigBase:
     """Mixin adding (de)serialization to dataclasses."""
 
     def to_dict(self) -> Dict[str, Any]:
+        """Recursively convert the dataclass to a plain (JSON-ready) dict."""
         return asdict(self)  # type: ignore[arg-type]
 
     @classmethod
@@ -44,6 +45,7 @@ class ConfigBase:
     # -- file IO ----------------------------------------------------------
     @classmethod
     def load(cls: Type[T], path: str | Path) -> T:
+        """Load a config from a ``.yaml``/``.yml`` or ``.json`` file."""
         path = Path(path)
         text = path.read_text(encoding="utf-8")
         if path.suffix.lower() in {".yaml", ".yml"}:
@@ -55,6 +57,7 @@ class ConfigBase:
         return cls.from_dict(d or {})
 
     def save(self, path: str | Path) -> None:
+        """Write the config to a ``.yaml``/``.yml`` or ``.json`` file."""
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.suffix.lower() in {".yaml", ".yml"}:

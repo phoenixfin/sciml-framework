@@ -22,6 +22,13 @@ The design goal: the **method engines and the shared substrate are generic**;
 each PDE/system is a problem that plugs in. Adding a new problem (or a new
 method) means writing one module, not forking the repo.
 
+## Documentation
+
+Full docs (with flowcharts) live in [`docs/`](docs/README.md):
+[overview](docs/overview.md) · [architecture](docs/architecture.md) ·
+[methods](docs/methods.md) · [problems](docs/problems.md) ·
+[extending](docs/extending.md) · [reference](docs/reference.md).
+
 ---
 
 ## Architecture

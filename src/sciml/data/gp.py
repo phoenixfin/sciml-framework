@@ -35,6 +35,7 @@ class PeriodicGPSampler:
     jitter: float = 1e-5
 
     def kernel(self, x: np.ndarray) -> np.ndarray:
+        """Periodic squared-exponential covariance matrix over points ``x``."""
         diff = x[:, None] - x[None, :]
         return self.amplitude**2 * np.exp(
             -2.0 * np.sin(np.pi * diff / self.period) ** 2 / self.length_scale**2)
@@ -67,11 +68,13 @@ class GPSampler:
     jitter: float = 1e-5
 
     def kernel(self, x: np.ndarray) -> np.ndarray:
+        """Non-periodic squared-exponential covariance matrix over points ``x``."""
         diff = x[:, None] - x[None, :]
         return self.amplitude**2 * np.exp(-(diff**2) / (2.0 * self.length_scale**2))
 
     def sample(self, x: np.ndarray, n: int,
                rng: Optional[np.random.Generator] = None) -> np.ndarray:
+        """Draw ``n`` functions at points ``x`` -> ``(n, len(x))`` float32."""
         x = np.asarray(x, dtype=np.float64)
         L = _cholesky_jitter(self.kernel(x), self.jitter)
         z = (np.random.randn(len(x), n) if rng is None

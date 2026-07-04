@@ -20,19 +20,25 @@ _log = get_logger(__name__)
 
 @dataclass
 class History:
+    """Recorded scalar training histories keyed by component name."""
+
     iters: List[int] = field(default_factory=list)
     values: Dict[str, List[float]] = field(default_factory=dict)
 
     def record(self, it: int, components: Dict[str, float]) -> None:
+        """Append the scalar ``components`` recorded at iteration ``it``."""
         self.iters.append(it)
         for k, v in components.items():
             self.values.setdefault(k, []).append(float(v))
 
     def to_dict(self) -> Dict[str, List[float]]:
+        """Return the history as a plain dict (``iter`` plus each component)."""
         return {"iter": list(self.iters), **{k: list(v) for k, v in self.values.items()}}
 
 
 class Trainer:
+    """Drive a training loop from an injected ``step_fn`` and ``sample_batch``."""
+
     def __init__(self, model, optimizer, step_fn: Callable[..., Tuple],
                  component_names: Optional[Sequence[str]] = None):
         self.model = model
@@ -52,6 +58,7 @@ class Trainer:
             log_every: int = 1000, history_every: int = 1000,
             ckpt_dir: Optional[str] = None, ckpt_every: int = 2000,
             warmup: int = 1, verbose: bool = True) -> History:
+        """Run ``n_iter`` training steps, logging/checkpointing, returning the History."""
         import tensorflow as tf
 
         for w in range(warmup):

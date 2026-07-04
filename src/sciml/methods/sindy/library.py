@@ -18,9 +18,11 @@ class FeatureLibrary:
     """Base class. Subclasses implement :meth:`transform` and :meth:`names`."""
 
     def transform(self, X: np.ndarray) -> np.ndarray:  # pragma: no cover - abstract
+        """Map data ``X`` ``(m, d)`` to the feature matrix ``Theta`` ``(m, p)``."""
         raise NotImplementedError
 
     def names(self, input_names: Optional[Sequence[str]] = None) -> List[str]:  # pragma: no cover
+        """Return the ``p`` human-readable feature names."""
         raise NotImplementedError
 
     def __call__(self, X: np.ndarray) -> np.ndarray:
@@ -59,6 +61,7 @@ class PolynomialLibrary(FeatureLibrary):
         return combos
 
     def transform(self, X: np.ndarray) -> np.ndarray:
+        """Evaluate every monomial term column-wise -> ``(m, p)``."""
         X = np.atleast_2d(X)
         d = X.shape[1]
         cols = []
@@ -73,7 +76,7 @@ class PolynomialLibrary(FeatureLibrary):
         return np.column_stack(cols)
 
     def names(self, input_names: Optional[Sequence[str]] = None) -> List[str]:
-        # d inferred lazily: names need d; default to single var if unknown.
+        """Monomial names such as ``1``, ``x``, ``x^2``, ``x*y`` (needs ``input_names``)."""
         raise_if_unknown = input_names is None
         d = 1 if raise_if_unknown else len(input_names)
         names = []
@@ -102,6 +105,7 @@ class FourierLibrary(FeatureLibrary):
         self.period = period
 
     def transform(self, X: np.ndarray) -> np.ndarray:
+        """Stack sine/cosine harmonics of every column -> ``(m, 2 * d * n_freq)``."""
         X = np.atleast_2d(X)
         cols = []
         for j in range(X.shape[1]):
@@ -112,6 +116,7 @@ class FourierLibrary(FeatureLibrary):
         return np.column_stack(cols)
 
     def names(self, input_names: Optional[Sequence[str]] = None) -> List[str]:
+        """Harmonic names such as ``sin(1w*x)``, ``cos(1w*x)``."""
         d = 1 if input_names is None else len(input_names)
         nm = self._input_names(d, input_names)
         names = []
@@ -133,10 +138,12 @@ class CustomLibrary(FeatureLibrary):
         self._names = list(names)
 
     def transform(self, X: np.ndarray) -> np.ndarray:
+        """Apply each user function to ``X`` and stack the columns."""
         X = np.atleast_2d(X)
         return np.column_stack([f(X) for f in self.functions])
 
     def names(self, input_names: Optional[Sequence[str]] = None) -> List[str]:
+        """Return the user-provided term names."""
         return list(self._names)
 
 
@@ -147,9 +154,11 @@ class ConcatLibrary(FeatureLibrary):
         self.libraries: List[FeatureLibrary] = list(libraries)
 
     def transform(self, X: np.ndarray) -> np.ndarray:
+        """Concatenate the feature matrices of all sub-libraries."""
         return np.column_stack([lib.transform(np.atleast_2d(X)) for lib in self.libraries])
 
     def names(self, input_names: Optional[Sequence[str]] = None) -> List[str]:
+        """Concatenate the feature names of all sub-libraries."""
         out: List[str] = []
         for lib in self.libraries:
             out.extend(lib.names(input_names))

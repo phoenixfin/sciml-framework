@@ -31,6 +31,7 @@ class SINDy:
     def fit(self, X: np.ndarray, Xdot: Optional[np.ndarray] = None,
             t: Optional[np.ndarray] = None,
             input_names: Optional[Sequence[str]] = None) -> "SINDy":
+        """Fit sparse coefficients ``Xi``; derivatives are estimated if ``Xdot`` is None."""
         X = np.atleast_2d(np.asarray(X, dtype=float))
         if Xdot is None:
             # Estimate derivatives column-wise via Savitzky-Golay.
@@ -46,6 +47,7 @@ class SINDy:
         return self
 
     def predict(self, X: np.ndarray) -> np.ndarray:
+        """Predict the derivatives ``Theta(X) @ Xi`` at states ``X``."""
         if self.coef_ is None:
             raise RuntimeError("Call fit() before predict().")
         return self.library.transform(np.atleast_2d(X)) @ self.coef_
