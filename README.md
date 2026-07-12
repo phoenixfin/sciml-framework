@@ -23,9 +23,19 @@ Additional model engines (generic, no packaged example yet — see `tests/` for 
 | **Neural ODE** (continuous-depth dynamics) | `sciml.methods.neuralode` | TensorFlow |
 | **DMD / Koopman** (dynamic mode decomposition) | `sciml.methods.dmd` | pure numpy |
 
+For **real-world data**, a dataset registry and a task layer make
+"this dataset x that method" a one-liner (see
+[Datasets & tasks](#datasets--tasks-your-data-through-any-method)):
+
+| Layer | Module | What it gives you |
+|---|---|---|
+| Dataset registry | `sciml.data.datasets` | `load("<name>", **opts)` for any registered dataset |
+| System identification | `sciml.tasks.sysid` | SINDy / SINDYc / DMDc + a full forecast-evaluation protocol |
+
 The design goal: the **method engines and the shared substrate are generic**;
-each PDE/system is a problem that plugs in. Adding a new problem (or a new
-method) means writing one module, not forking the repo.
+each PDE/system is a problem that plugs in, and each dataset is a loader that
+registers. Adding a new problem, method or dataset means writing one module,
+not forking the repo.
 
 ## Documentation
 
@@ -42,6 +52,13 @@ Full docs (with flowcharts) live in [`docs/`](docs/README.md):
 src/sciml/
   core/        config, metrics, plotting, seeding, logging, io, derivatives   (pure numpy)
   data/        gp.py (GP samplers), interp.py                                  (pure numpy)
+    datasets/  registry (load/register/list_datasets), containers
+               (TimeSeriesData, FunctionPairData), built-ins:
+               wnts (confidential, needs pandas), lti_demo, advection_pairs    (numpy; lazy pandas)
+  tasks/
+    sysid.py   system identification on TimeSeriesData: SINDy/SINDYc/DMDc +
+               causal operating point, splits, multi-horizon rollout metrics,
+               trivial baselines                                               (pure numpy)
   solvers/     swe_lax_friedrichs, wave_fdm, compartmental                     (pure numpy)
   methods/
     deeponet/  mlp, operator (DeepONetOperator), optim, trainer                (TensorFlow)
@@ -55,9 +72,10 @@ src/sciml/
     swe/            DeepONet on the SWE         (config, cases, model, problem, runners)
     wave_obstacle/  PINN on a moving boundary   (config, problem, runners)
     epidemiology/   SINDy on dengue β(t)        (config, reconstruction, estimators, problem, runners)
-  cli.py       `sciml {swe,wave,dengue}`
+  cli.py       `sciml {swe,wave,dengue,datasets,sysid}`
 configs/       swe.yaml, wave_obstacle.yaml, dengue.yaml (+ JSON also supported)
-experiments/   swe/{train,evaluate,ablation,nd_scaling,physics_attractor}, wave_obstacle/run, epidemiology/run
+experiments/   swe/{train,evaluate,ablation,nd_scaling,physics_attractor}, wave_obstacle/run,
+               epidemiology/run, wnts/ (gas-network SINDYc study -- see its REPORT.md)
 tests/         numpy tests (always run) + TF-guarded tests (skip without TF)
 ```
 
@@ -146,6 +164,70 @@ recon = dmd.reconstruct(X.shape[1])           # dmd.eigenvalues / .omega / .mode
 
 ---
 
+## Datasets & tasks — your data through any method
+
+Real datasets register once, then pair with any suitable method through a
+task layer that fixes the evaluation protocol (so results are comparable
+across datasets and methods).
+
+```python
+from sciml.data.datasets import load, list_datasets
+from sciml.tasks import sysid
+
+print(list_datasets())          # {'advection_pairs': ..., 'lti_demo': ..., 'wnts': ...}
+
+# system identification: states + exogenous inputs -> sparse dynamics + forecast skill
+data = load("lti_demo")                                   # or "wnts", or your own
+res = sysid.run(data, states=["x1", "x2"], inputs=["u1", "u2"], method="sindyc")
+print(res.summary())            # identified equations, R^2, NRMSE vs baselines per horizon
+print(res.equations)            # e.g. d/dt x1 = -0.157 x1 +0.068 x2 +0.155 u1
+```
+
+Or from the shell:
+
+```bash
+sciml datasets                                           # list what's registered
+sciml sysid --data lti_demo --states x1 x2 --inputs all  # full protocol, one line
+sciml sysid --data wnts --data-arg years=[2019] \
+            --states P_up P_orf --inputs all --method sindyc --out results.json
+```
+
+The `sysid` protocol is the one developed in the WNTS gas-network study
+(`experiments/wnts/REPORT.md` — the study is also the design rationale):
+**causal** trailing operating point (no future information), discrete-time
+fitting with the consistent Euler rollout, chronological or transfer splits,
+multi-horizon forecast NRMSE against persistence / climatology / daily-repeat
+baselines, and divergence tracking. Methods: `sindyc` (sparse, with inputs),
+`sindy` (sparse, autonomous), `dmdc` (dense linear least squares — the
+natural null model).
+
+Containers (`sciml.data.datasets`):
+
+- `TimeSeriesData` — named channels, contiguous segments, uniform `dt`
+  (system-identification-shaped; pure numpy).
+- `FunctionPairData` — paired input/output functions on grids
+  (operator-learning-shaped, for DeepONet/FNO; task layer TBD).
+
+### Adding your own dataset
+
+```python
+from sciml.data.datasets import register, TimeSeriesData
+
+@register("my_plant")
+def load_my_plant(path: str = "data/plant.csv") -> TimeSeriesData:
+    """One-line description shown by list_datasets()."""
+    segments, channels = ...   # read, clean, split into contiguous arrays (n_i, d)
+    return TimeSeriesData(segments=segments, channels=channels, dt_hours=1.0)
+```
+
+That's the whole integration: `load("my_plant")` and every task, metric and
+baseline works immediately. Built-in loaders live in
+`src/sciml/data/datasets/` (`wnts.py` is the reference for a real, messy
+dataset: frozen-telemetry masking, segment extraction, block-averaging,
+derived channels).
+
+---
+
 ## Experiment scripts
 
 ```bash
@@ -159,7 +241,20 @@ python -m experiments.swe.physics_attractor --steps 5000
 # PINN / wave-obstacle, SINDy / dengue
 python -m experiments.wave_obstacle.run     --config configs/wave_obstacle.yaml
 python -m experiments.epidemiology.run      --config configs/dengue.yaml
+
+# SINDYc / WNTS gas network (confidential data; see experiments/wnts/REPORT.md)
+python -m experiments.wnts.run              # six-model ladder + baselines + figures
+python -m experiments.wnts.multi_year       # A1: per-year + transfer robustness
+python -m experiments.wnts.ablation_states  # A3: state-dimension / stability mechanism
+python -m experiments.wnts.ablation_library # B1: polynomial vs physics libraries
+python -m experiments.wnts.ablation_inputs  # B2: which boundary flows matter
+python -m experiments.wnts.sweep_hyper      # B3: threshold/alpha/dt/clip sensitivity
+python -m experiments.wnts.benchmark_dmdc   # B4: DMDc null-model comparison
 ```
+
+The WNTS study's consolidated findings (data quirks, protocol design,
+results A1–A4 and B1–B4, and the remaining experiment plan) are in
+[`experiments/wnts/REPORT.md`](experiments/wnts/REPORT.md).
 
 ---
 
