@@ -1,8 +1,11 @@
-"""Command-line interface: one subcommand per worked example.
+"""Command-line interface: worked examples plus generic dataset tasks.
 
-    sciml swe     [--quick] [--config C] [--out D] [--timing]   # DeepONet / SWE
-    sciml wave    [--quick] [--config C] [--out D] [--no-lbfgs] # PINN / wave-obstacle
-    sciml dengue  [--quick] [--config C] [--out D]              # SINDy / dengue beta(t)
+    sciml swe      [--quick] [--config C] [--out D] [--timing]   # DeepONet / SWE
+    sciml wave     [--quick] [--config C] [--out D] [--no-lbfgs] # PINN / wave-obstacle
+    sciml dengue   [--quick] [--config C] [--out D]              # SINDy / dengue beta(t)
+    sciml datasets                                               # list registered datasets
+    sciml sysid --data NAME --states S1 S2 [--inputs all|U1 ...] # system identification
+               [--data-arg k=v ...] [--method sindyc|sindy|dmdc] [--out results.json]
 
 Run ``sciml <cmd> -h`` for options.
 """
@@ -93,6 +96,84 @@ def _cmd_dengue(args: argparse.Namespace) -> None:
     runners.run(cfg, out_dir=out)
 
 
+def _parse_kv(pairs: Optional[Sequence[str]]) -> dict:
+    """Parse repeated ``key=value`` options with Python-literal values.
+
+    Parameters
+    ----------
+    pairs : Optional[Sequence[str]]
+        Strings of the form ``key=value``; values are parsed with
+        ``ast.literal_eval`` and fall back to the raw string.
+
+    Returns
+    -------
+    dict
+        The parsed keyword arguments.
+    """
+    import ast
+    out = {}
+    for p in pairs or []:
+        k, _, v = p.partition("=")
+        try:
+            out[k] = ast.literal_eval(v)
+        except (ValueError, SyntaxError):
+            out[k] = v
+    return out
+
+
+def _cmd_datasets(args: argparse.Namespace) -> None:
+    """List all registered datasets with a one-line description.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command-line arguments (unused).
+
+    Returns
+    -------
+    None
+    """
+    from .data.datasets import list_datasets
+    for name, desc in list_datasets().items():
+        print(f"{name:18s} {desc}")
+
+
+def _cmd_sysid(args: argparse.Namespace) -> None:
+    """Run the system-identification task on a registered dataset.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Parsed command-line arguments for the ``sysid`` subcommand.
+
+    Returns
+    -------
+    None
+    """
+    from .data.datasets import load
+    from .tasks import sysid
+    data = load(args.data, **_parse_kv(args.data_arg))
+    inputs = args.inputs or []
+    if inputs == ["all"]:
+        inputs = [c for c in data.channels if c not in args.states]
+    res = sysid.run(data, states=args.states, inputs=inputs, method=args.method,
+                    center=args.center, op_window_h=args.op_window,
+                    threshold=args.threshold, alpha=args.alpha, degree=args.degree)
+    print(res.summary())
+    if args.out:
+        import json
+        payload = {"states": res.states, "inputs": res.inputs,
+                   "equations": res.equations, "coefficients": res.coefficients,
+                   "r2_train": res.r2_train, "r2_test": res.r2_test,
+                   "metrics": res.metrics,
+                   "baselines": {b: {str(h): v for h, v in m.items()}
+                                 for b, m in res.baselines.items()},
+                   "details": res.details}
+        with open(args.out, "w", encoding="utf-8") as fh:
+            json.dump(payload, fh, indent=2)
+        print(f"Saved {args.out}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     """Build the ``sciml`` argument parser (one subcommand per example).
 
@@ -119,6 +200,25 @@ def build_parser() -> argparse.ArgumentParser:
 
     pd = sub.add_parser("dengue", parents=[common], help="SINDy: dengue beta(t)")
     pd.set_defaults(func=_cmd_dengue)
+
+    pl = sub.add_parser("datasets", help="List registered datasets")
+    pl.set_defaults(func=_cmd_datasets)
+
+    py_ = sub.add_parser("sysid", help="System identification on a registered dataset")
+    py_.add_argument("--data", required=True, help="Registered dataset name")
+    py_.add_argument("--data-arg", action="append", metavar="K=V",
+                     help="Loader option (repeatable), e.g. --data-arg years=[2019]")
+    py_.add_argument("--states", nargs="+", required=True, help="State channel names")
+    py_.add_argument("--inputs", nargs="+", default=[],
+                     help="Input channel names, or 'all' for every non-state channel")
+    py_.add_argument("--method", choices=["sindyc", "sindy", "dmdc"], default="sindyc")
+    py_.add_argument("--center", choices=["causal", "segment"], default="causal")
+    py_.add_argument("--op-window", type=float, default=72.0)
+    py_.add_argument("--threshold", type=float, default=None)
+    py_.add_argument("--alpha", type=float, default=None)
+    py_.add_argument("--degree", type=int, default=None)
+    py_.add_argument("--out", help="Optional path for a JSON result file")
+    py_.set_defaults(func=_cmd_sysid)
     return p
 
 
