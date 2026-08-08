@@ -1,4 +1,8 @@
-"""Port of the manuscript's v6 pipeline (``pi_deeponet_swe_v6.ipynb``) as a module.
+"""Port of the manuscript's v6 pipeline as a module.
+
+Ported from ``pi_deeponet_swe_v6.ipynb``, which is no longer in the tree; retrieve
+it with ``git show ff45b6b^:notebooks/pi_deeponet_swe/pi_deeponet_swe_v6.ipynb``
+if you need to check this port against the original.
 
 This is the *paper's own* architecture, loss and training loop — not the minimal
 reimplementation in ``deeponet_tf.py``. It exists so the 40k-step run can be
