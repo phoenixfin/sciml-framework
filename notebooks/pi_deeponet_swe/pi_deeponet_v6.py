@@ -78,6 +78,19 @@ def periodic_fn(x_src, f):
 # ----------------------------------------------------------------------
 # model (v6 §6)
 # ----------------------------------------------------------------------
+def _elu_plus_one(z):
+    """``elu(z) + 1``, evaluated without the cancellation.
+
+    Writing it literally as ``tf.nn.elu(z) + 1`` forms ``exp(z) - 1`` and then adds
+    one back; in float32 that rounds to exactly 0 for z below about -16, which pins
+    the depth to the floor *and* zeroes the gradient there. Taking the branches
+    directly keeps it strictly positive and differentiable. The lower clip stops
+    exp underflowing at large negative z.
+    """
+    z = tf.clip_by_value(z, -20.0, 20.0)
+    return tf.where(z >= 0.0, z + 1.0, tf.exp(tf.minimum(z, 0.0)))
+
+
 def make_mlp(in_d, hidden, out_d, name, out_std=0.1):
     """Fully connected MLP with tanh activations and small output init."""
     inp = tf.keras.Input(shape=(in_d,))
@@ -107,6 +120,13 @@ class PIDeepONetSWE(tf.keras.Model):
 
     ``ic_mode="exp"`` replaces it with ``b + H_MIN + (h0-b-H_MIN) exp(t F_h)``,
     which is exact at t=0 and cannot fall below the floor.
+
+    ``ic_mode="elu_scaled"`` is ``b + H_MIN + (h0-b-H_MIN) (elu(t F_h) + 1)``. Since
+    ``elu(z) + 1`` is ``exp(z)`` for z < 0 and ``z + 1`` for z >= 0, it is exact at
+    t=0 and strictly above the floor exactly as ``exp`` is, but it grows *linearly*
+    rather than exponentially in the correction field. That matters: ``exp`` costs a
+    factor ~2.4 on unseen-pair generalisation, and exponential amplification of F is
+    the obvious suspect.
     """
 
     def __init__(self, m=M, p=P, ic_mode="paper"):
@@ -133,6 +153,9 @@ class PIDeepONetSWE(tf.keras.Model):
         elif self.ic_mode == "exp":
             d = tf.maximum(h0_at_x - b_at_x - H_MIN, 1e-6)
             h_pred = b_at_x + H_MIN + d * tf.exp(tf.clip_by_value(t * F_h, -20.0, 20.0))
+        elif self.ic_mode == "elu_scaled":
+            d = tf.maximum(h0_at_x - b_at_x - H_MIN, 1e-6)
+            h_pred = b_at_x + H_MIN + d * _elu_plus_one(t * F_h)
         else:
             raise ValueError(self.ic_mode)
         return h_pred, t * F_hu

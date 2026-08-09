@@ -13,6 +13,9 @@ Two things differ from the paper on purpose, both switchable:
              'shifted'  same, with eps moved inside  -> exact at t=0
              'exp'      b + hmin + (h0 - b - hmin) * exp(tF)  -> exact AND strictly > b+hmin
              'softplus' b + hmin + softplus(tF + softplus_inv(h0-b-hmin))  (stable softplus)
+             'elu_scaled'  b + hmin + (h0 - b - hmin) * (elu(tF) + 1)
+                        -> exact AND floored like 'exp', but linear in F rather than
+                           exponential
 
 Requires TensorFlow >= 2.10.
 """
@@ -45,6 +48,17 @@ def _softplus_inv(y):
 
 def _softplus(z):
     return tf.nn.softplus(z)
+
+
+def _elu_plus_one(z):
+    """``elu(z) + 1`` without the cancellation.
+
+    ``tf.nn.elu(z) + 1`` forms ``exp(z) - 1`` and adds one back, which rounds to
+    exactly 0 in float32 below z ~ -16 — pinning the depth to the floor and zeroing
+    the gradient. Taking the branches directly avoids both.
+    """
+    z = tf.clip_by_value(z, -20.0, 20.0)
+    return tf.where(z >= 0.0, z + 1.0, tf.exp(tf.minimum(z, 0.0)))
 
 
 class FourBranchDeepONet(tf.keras.Model):
@@ -89,6 +103,10 @@ class FourBranchDeepONet(tf.keras.Model):
         d = tf.maximum(h0q - bq - hmin, 1e-6)           # depth above the floor at t=0
         if self.ic_mode == "exp":
             return bq + hmin + d * tf.exp(tf.clip_by_value(t * F, -20.0, 20.0))
+        if self.ic_mode == "elu_scaled":
+            # elu(z)+1 is exp(z) below 0 and z+1 above: exact at t=0 and strictly
+            # above the floor like 'exp', but linear rather than exponential in F
+            return bq + hmin + d * _elu_plus_one(t * F)
         if self.ic_mode == "softplus":
             return bq + hmin + _softplus(t * F + _softplus_inv(d))
         raise ValueError(self.ic_mode)
@@ -128,7 +146,6 @@ def swe_residual(model, h0s, bs, h0_fn, b_fn, x, t):
     hu_t = _d(hu, t)
     f_x = _d(mom_flux, x)
     b_x = _d(bq, x)          # zeros for a flat bed (tf.zeros_like is not tape-connected)
-    del g
     r_mass = h_t + hu_x
     r_mom = hu_t + f_x + G * h * b_x
     return r_mass, r_mom

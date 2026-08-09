@@ -441,10 +441,27 @@ without a GPU.
 
 ## Still open
 
-- **Ablation power.** `CFG["ABLATION_SEEDS"] = (0,1,2,3,4)` with `RUN_PART4 = False`
-  takes df from 2 to 4, ≈65 min. Worth it if Table 4 is load-bearing.
-- **`softplus` at 40k.** Only `paper` and `exp` were trained. If the C4 penalty is
-  specific to the exponential rather than to flooring in general, `softplus` would show
-  it; add it to `CFG["IC_MODES_40K"]` (≈20 min).
+Queued for the next run (notebook `2026-08-10`), all three affecting what §4.1 and
+§3.2 above can claim:
+
+- **`elu_scaled` at 40k.** A fourth shortcut, `b + h_min + (h₀−b−h_min)(elu(tF)+1)`:
+  exact at t = 0 and floored exactly as `exp` is, but **linear** in the correction field
+  rather than exponential. Exponential amplification of F is the obvious suspect for the
+  2.4× C4 penalty. If `elu_scaled` matches `paper` on C4, the IC fix is free and the
+  "guarantee at a measured price" framing in §4.1 should be deleted rather than softened.
+- **Five ablation seeds with difference-in-differences.** The primary statistic becomes
+  (add − concat)|C2b − (add − concat)|C1: differencing against the flat-bed control
+  cancels any across-the-board advantage of one fusion and isolates the bathymetry
+  interaction, which is the actual claim. df goes from 2 to 4.
+- **Fig. 6 and Table 4 row A0 with the full residual.** Both were produced with v6's
+  truncated residual, whose global minimum *is* F = 0, so they document that residual
+  rather than physics-informed training. §4.5 regenerates them with the momentum flux
+  and bed source restored, with the depth error measured against the well-balanced
+  reference instead of against h₀.
+
+Not queued:
+
+- **`softplus` at 40k.** Untested at the production budget. Worth adding to
+  `CFG["IC_MODES_40K"]` only if `elu_scaled` fails to recover the gap.
 - **C3 is not a clean benchmark.** It is non-periodic and solved with a periodic solver,
   as in v6. Either label it a stress test or give it a non-periodic reference.
