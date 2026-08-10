@@ -2,17 +2,17 @@
 
 Every number below comes from one unattended Kaggle run of
 [`kaggle_swe_revision_all.ipynb`](kaggle_swe_revision_all.ipynb); the raw record is
-[`results_2026-08-09.json`](results_2026-08-09.json), and this file is generated from it.
+[`results_2026-08-10.json`](results_2026-08-10.json), and this file is generated from it.
 
 | | |
 |---|---|
-| Notebook version | `2026-08-09b  Parts 1/3/4 (Part 2 off), seed sweeps, GPU guard` |
-| Wall clock | 103.5 min |
+| Notebook version | `2026-08-10b  5 seeds, elu_scaled, DiD ablation, Fig. 6 with full residual` |
+| Wall clock | 196.6 min |
 | TensorFlow | 2.20.0, 2 GPU(s), legacy Keras: True |
 | Parts run | part1, part3, part4 |
 | Supervised trajectories | 152 of 502 sampled, nx = 400 |
-| Production budget | 40,000 steps × 2 IC modes × 3 seeds |
-| Ablation budget | 15,000 steps × 3 fusions × 3 seeds |
+| Production budget | 40,000 steps × 3 IC modes × 3 seeds |
+| Ablation budget | 15,000 steps × 3 fusions × 5 seeds |
 
 Part 2 was disabled in this run; its numbers are quoted from the run of the same day
 that had it enabled (TF 2.20, P100) and are flagged where they appear. They are
@@ -31,8 +31,8 @@ deterministic given the seed and were bit-identical across every run that comput
 | §3.5.1 "F = 0 attractor" | F = 0 is an exact minimum **of the implemented residual**, which omits the momentum flux and bed source; with the full residual training leaves for the **steady-state manifold** |
 | Eq. (12) guarantees ĥ ≥ b + h_min + ε | false: under stress ĥ reaches **−0.95 m** |
 | §3.7.3 / Remark 3 / Fig. 6: 6.6e12, 1.5e2, 2.2e1 | three protocols, three numbers; the 6.6e12 is not reproducible under any of five matched protocols |
-| §3.4.2 the h₀–b interaction is mediated through the trunk | the trunks never see h₀ or b; additive fusion is separable, and **concat beats add on the strong-bump case in 3/3 seeds** while being flat where there is no bathymetry |
-| Table 5 speedup | honest **2376× vs serial**, **368× vs a vectorised baseline** |
+| §3.4.2 the h₀–b interaction is mediated through the trunk | the trunks take only (x, t), so this is wrong on inspection — but the fusion ablation **does not** corroborate it: over five seeds no paired contrast or difference-in-differences is significant (§3.2) |
+| Table 5 speedup | honest **2127× vs serial**, **376× vs a vectorised baseline** |
 
 ---
 
@@ -106,7 +106,7 @@ The jump from 2.00 at t = 0.7 to 5.28 at t = 0.8 places shock formation at **t �
 ### 1.5 Error budget against a converged reference
 
 Reference: order-2 well-balanced HLL at nx = 12800,
-computed in 76 s.
+computed in 109 s.
 
 | scheme | CFL | ν [m²/s] | rel L2 | rel L2 (anomaly) | peak-to-peak h |
 |---|---|---|---|---|---|
@@ -125,7 +125,7 @@ Total momentum stays at **7.5e-15** — round-off.
 
 ### 1.7 Data regeneration
 
-- 152 supervised trajectories, ensemble-vectorised: **14.1 s** total, 93 ms each
+- 152 supervised trajectories, ensemble-vectorised: **20.7 s** total, 136 ms each
 - The manuscript quotes 66 s for this step, so the well-balanced solver at the correct
   CFL is **cheaper**, not more expensive. This strengthens the data-efficiency argument.
 
@@ -201,62 +201,92 @@ Two independent defects in Eq. (12): it is off by ε at t = 0, and the ELU floor
 
 ### 3.1 Operator conservation
 
-- DeepONet relative mass drift at T: **1.186e-02**
+- DeepONet relative mass drift at T: **1.723e-02**
 - Reference solver: 1.672e-16
-- Operator total momentum at T on a flat bed: **+4.638e-01** (should be 0)
+- Operator total momentum at T on a flat bed: **-1.890e-02** (should be 0)
 
 Percent-level mass violation is normal for a neural operator; reporting it is worth more
 than the number itself.
 
 ### 3.2 Table 4 — branch-fusion ablation
 
-Three variants × 3 seeds × 15,000 steps, evaluated against the
+Three variants × 5 seeds × 15,000 steps, evaluated against the
 well-balanced reference at T = 1 s. C2b raises the bump from 0.2 m to 0.5 m so the
 source term −gh ∂ₓb genuinely depends on the *product* of the two inputs.
 
 | case | fusion | ε_h (total) | ε_h (anomaly) | RMSE_h [m] | ε_hu |
 |---|---|---|---|---|---|
-| C1  flat bed | `add` | 0.0624 ± 0.0036 | 0.8367 ± 0.0485 | 0.0665 ± 0.0039 | 0.3733 ± 0.0610 |
-| C1  flat bed | `concat` | 0.0638 ± 0.0055 | 0.8551 ± 0.0743 | 0.0680 ± 0.0059 | 0.3461 ± 0.0297 |
-| C1  flat bed | `bilinear` | 0.0609 ± 0.0016 | 0.8167 ± 0.0219 | 0.0649 ± 0.0017 | 0.3646 ± 0.0242 |
-| C2  bump 0.2 m | `add` | 0.0868 ± 0.0109 | 0.6142 ± 0.0767 | 0.0932 ± 0.0116 | 0.3698 ± 0.0272 |
-| C2  bump 0.2 m | `concat` | 0.0844 ± 0.0052 | 0.5971 ± 0.0367 | 0.0906 ± 0.0056 | 0.3303 ± 0.0423 |
-| C2  bump 0.2 m | `bilinear` | 0.0835 ± 0.0030 | 0.5907 ± 0.0209 | 0.0897 ± 0.0032 | 0.3508 ± 0.0420 |
-| C2b bump 0.5 m (NEW) | `add` | 0.1542 ± 0.0145 | 0.7329 ± 0.0691 | 0.2307 ± 0.0218 | 0.5240 ± 0.0050 |
-| C2b bump 0.5 m (NEW) | `concat` | 0.1323 ± 0.0078 | 0.6289 ± 0.0372 | 0.1980 ± 0.0117 | 0.5174 ± 0.0261 |
-| C2b bump 0.5 m (NEW) | `bilinear` | 0.1397 ± 0.0111 | 0.6641 ± 0.0529 | 0.2091 ± 0.0167 | 0.5193 ± 0.0725 |
+| C1  flat bed | `add` | 0.0654 ± 0.0047 | 0.8763 ± 0.0631 | 0.0696 ± 0.0050 | 0.3722 ± 0.0605 |
+| C1  flat bed | `concat` | 0.0581 ± 0.0073 | 0.7792 ± 0.0976 | 0.0619 ± 0.0078 | 0.3532 ± 0.0168 |
+| C1  flat bed | `bilinear` | 0.0629 ± 0.0077 | 0.8428 ± 0.1034 | 0.0670 ± 0.0082 | 0.3595 ± 0.0384 |
+| C2  bump 0.2 m | `add` | 0.0839 ± 0.0063 | 0.5934 ± 0.0446 | 0.0901 ± 0.0068 | 0.3600 ± 0.0500 |
+| C2  bump 0.2 m | `concat` | 0.0798 ± 0.0085 | 0.5646 ± 0.0601 | 0.0857 ± 0.0091 | 0.3417 ± 0.0177 |
+| C2  bump 0.2 m | `bilinear` | 0.0858 ± 0.0169 | 0.6068 ± 0.1196 | 0.0921 ± 0.0182 | 0.3428 ± 0.0175 |
+| C2b bump 0.5 m (NEW) | `add` | 0.1354 ± 0.0062 | 0.6433 ± 0.0293 | 0.2025 ± 0.0092 | 0.5164 ± 0.0357 |
+| C2b bump 0.5 m (NEW) | `concat` | 0.1348 ± 0.0156 | 0.6404 ± 0.0742 | 0.2016 ± 0.0234 | 0.5150 ± 0.0225 |
+| C2b bump 0.5 m (NEW) | `bilinear` | 0.1506 ± 0.0310 | 0.7156 ± 0.1473 | 0.2253 ± 0.0464 | 0.4997 ± 0.0193 |
 
-Unpaired, every contrast overlaps. But the variants share a seed, hence the same
-initialisation stream and batch order, so the **paired** difference is the test with the
-power:
+Unpaired, every contrast overlaps. The variants share a seed, hence the same
+initialisation stream and batch order, so the **paired** difference removes that common
+variance:
 
-| case | contrast | mean diff | std | t (df=2) | wins |
+| case | contrast | mean diff | std | t | better in |
 |---|---|---|---|---|---|
-| C1  flat bed | `add` − `concat` | -0.0014 | 0.0083 | -0.29 | `concat` 1/3 |
-| C1  flat bed | `add` − `bilinear` | +0.0015 | 0.0022 | +1.19 | `bilinear` 2/3 |
-| C1  flat bed | `concat` − `bilinear` | +0.0029 | 0.0062 | +0.80 | `bilinear` 2/3 |
-| C2  bump 0.2 m | `add` − `concat` | +0.0024 | 0.0120 | +0.35 | `concat` 2/3 |
-| C2  bump 0.2 m | `add` − `bilinear` | +0.0033 | 0.0089 | +0.65 | `bilinear` 2/3 |
-| C2  bump 0.2 m | `concat` − `bilinear` | +0.0009 | 0.0038 | +0.41 | `bilinear` 2/3 |
-| C2b bump 0.5 m (NEW) | `add` − `concat` | **+0.0219** | 0.0105 | **+3.62** | `concat` 3/3 |
-| C2b bump 0.5 m (NEW) | `add` − `bilinear` | +0.0145 | 0.0195 | +1.29 | `bilinear` 2/3 |
-| C2b bump 0.5 m (NEW) | `concat` − `bilinear` | -0.0074 | 0.0180 | -0.71 | `bilinear` 1/3 |
+| C1  flat bed | `add` − `concat` | +0.0072 | 0.0059 | +2.72 | `concat` 5/5 |
+| C1  flat bed | `add` − `bilinear` | +0.0025 | 0.0086 | +0.65 | `bilinear` 2/5 |
+| C1  flat bed | `concat` − `bilinear` | -0.0047 | 0.0108 | -0.98 | `bilinear` 1/5 |
+| C2  bump 0.2 m | `add` − `concat` | +0.0041 | 0.0092 | +0.99 | `concat` 3/5 |
+| C2  bump 0.2 m | `add` − `bilinear` | -0.0019 | 0.0179 | -0.24 | `bilinear` 3/5 |
+| C2  bump 0.2 m | `concat` − `bilinear` | -0.0060 | 0.0149 | -0.89 | `bilinear` 2/5 |
+| C2b bump 0.5 m (NEW) | `add` − `concat` | +0.0006 | 0.0172 | +0.08 | `concat` 3/5 |
+| C2b bump 0.5 m (NEW) | `add` − `bilinear` | -0.0152 | 0.0329 | -1.03 | `bilinear` 2/5 |
+| C2b bump 0.5 m (NEW) | `concat` − `bilinear` | -0.0158 | 0.0241 | -1.46 | `bilinear` 2/5 |
 
-**The one contrast that separates:** `add` − `concat` on C2b is +0.0219, t = 3.62, with `concat` ahead in
-3/3 seeds — additive fusion is **16.5% worse**. The same contrast on C1, where there
-is no bathymetry to couple to, is −0.0014 (t = −0.29). Flat where the theory says flat,
-open where the theory says open.
+And the primary statistic — **difference in differences** against the flat-bed control.
+A contrast being larger on a bumpy case only supports the separability argument if the
+bathymetry coupling is what does the work; differencing against C1 cancels any
+across-the-board advantage one fusion has over another.
 
-Caveat to state in the paper: df = 2, so t = 3.62 is p ≈ 0.07 two-sided. The direction is
-unanimous but the design is underpowered; five seeds would settle it.
+| case | contrast | DiD | std | t | p < 0.05? |
+|---|---|---|---|---|---|
+| C2  bump 0.2 m | `add` − `concat` | -0.0032 | 0.0039 | -1.83 | no |
+| C2  bump 0.2 m | `add` − `bilinear` | -0.0044 | 0.0111 | -0.88 | no |
+| C2  bump 0.2 m | `concat` − `bilinear` | -0.0012 | 0.0075 | -0.36 | no |
+| C2b bump 0.5 m (NEW) | `add` − `concat` | -0.0066 | 0.0209 | -0.71 | no |
+| C2b bump 0.5 m (NEW) | `add` − `bilinear` | -0.0177 | 0.0270 | -1.46 | no |
+| C2b bump 0.5 m (NEW) | `concat` − `bilinear` | -0.0111 | 0.0244 | -1.02 | no |
+
+n = 5 seeds, df = 4, two-sided t critical = 2.78.
+
+### The ablation does not support the architectural claim
+
+**Not one contrast is significant**, on either statistic. Every DiD is *negative* — the
+opposite sign to the prediction — and the largest is 1.5 standard errors from zero.
+
+An earlier three-seed run put `add` − `concat` on C2b at +0.0219 (t = 3.62, `concat`
+ahead in 3/3), which looked like the predicted effect. It does not survive:
+
+- five seeds, this run: **+0.0006 ± 0.0172, t = +0.08**
+- the first three seeds of *this* run: +0.0042 ± 0.0162, t = +0.45
+
+So it was not merely underpowered — the earlier estimate does not reproduce even at the
+same seed count. Treat it as run-specific noise.
+
+**What this means for §3.4.2.** The claim that the trunk mediates the h₀–b interaction is
+still wrong, and can be corrected on inspection: the trunks take only (x, t), so they
+cannot carry any h₀–b coupling, and β = B₁(h₀) + B₂(b) is additively separable while the
+source term −gh ∂ₓb is not. That is an argument about the architecture, not a
+measurement. But Table 4 **cannot be presented as evidence that non-additive fusion
+helps** — at 15k steps this experiment does not separate the three variants. Report the
+null honestly, or drop the ablation and let the separability argument stand alone.
 
 ### 3.3 Table 5 — like-for-like speedup
 
 | batch | solver serial [ms] | solver batched [ms] | operator [ms] | vs serial | vs batched |
 |---|---|---|---|---|---|
-| 1 | 449.0 | 487.8 | 18.2866 | 25× | 27× |
-| 10 | 445.3 | 99.0 | 1.7804 | 250× | 56× |
-| 100 | 454.8 | 70.4 | 0.1914 | 2376× | 368× |
+| 1 | 540.8 | 578.3 | 20.9980 | 26× | 28× |
+| 10 | 506.0 | 117.5 | 2.1982 | 230× | 53× |
+| 100 | 509.0 | 90.0 | 0.2393 | 2127× | 376× |
 
 All times per trajectory. The solver leg is single-threaded NumPy. The manuscript's
 original comparison timed a solver at 13× more timesteps than it needed against a
@@ -276,28 +306,53 @@ over-diffused Lax-Friedrichs ones.
 
 | case | IC | ε_h (total) | ε_h (anomaly) | RMSE_h [m] | ε_hu |
 |---|---|---|---|---|---|
-| C1  smooth IC, flat bed | `paper` | **0.0282 ± 0.0020** | 0.3778 ± 0.0273 | 0.0300 ± 0.0022 | 0.1724 ± 0.0036 |
-| C2  smooth IC, bump bed | `paper` | **0.0301 ± 0.0030** | 0.2127 ± 0.0214 | 0.0323 ± 0.0033 | 0.1765 ± 0.0095 |
-| C3  dam break (OOD) | `paper` | **0.1855 ± 0.0253** | 0.8576 ± 0.1170 | 0.2850 ± 0.0389 | 0.5568 ± 0.0832 |
-| C4  100 unseen (mean) | `paper` | **0.0303 ± 0.0006** | 0.4201 ± 0.0094 | 0.0255 ± 0.0003 | 0.1753 ± 0.0056 |
-| C1  smooth IC, flat bed | `exp` | **0.0261 ± 0.0030** | 0.3498 ± 0.0407 | 0.0278 ± 0.0032 | 0.1790 ± 0.0096 |
-| C2  smooth IC, bump bed | `exp` | **0.0344 ± 0.0050** | 0.2432 ± 0.0356 | 0.0369 ± 0.0054 | 0.1661 ± 0.0237 |
-| C3  dam break (OOD) | `exp` | **0.2107 ± 0.0191** | 0.9742 ± 0.0881 | 0.3238 ± 0.0293 | 0.4997 ± 0.0439 |
-| C4  100 unseen (mean) | `exp` | **0.0718 ± 0.0020** | 0.9104 ± 0.0298 | 0.0530 ± 0.0008 | 0.1848 ± 0.0024 |
+| C1  smooth IC, flat bed | `paper` | **0.0256 ± 0.0027** | 0.3428 ± 0.0360 | 0.0272 ± 0.0029 | 0.1894 ± 0.0119 |
+| C2  smooth IC, bump bed | `paper` | **0.0340 ± 0.0037** | 0.2407 ± 0.0263 | 0.0365 ± 0.0040 | 0.1761 ± 0.0104 |
+| C3  dam break (OOD) | `paper` | **0.1775 ± 0.0181** | 0.8206 ± 0.0836 | 0.2727 ± 0.0278 | 0.4979 ± 0.0812 |
+| C4  100 unseen (mean) | `paper` | **0.0321 ± 0.0008** | 0.4399 ± 0.0100 | 0.0266 ± 0.0003 | 0.1752 ± 0.0082 |
+| C1  smooth IC, flat bed | `exp` | **0.0236 ± 0.0017** | 0.3162 ± 0.0223 | 0.0251 ± 0.0018 | 0.1832 ± 0.0040 |
+| C2  smooth IC, bump bed | `exp` | **0.0306 ± 0.0006** | 0.2167 ± 0.0042 | 0.0329 ± 0.0006 | 0.1659 ± 0.0130 |
+| C3  dam break (OOD) | `exp` | **0.2099 ± 0.0289** | 0.9703 ± 0.1335 | 0.3225 ± 0.0444 | 0.5201 ± 0.0524 |
+| C4  100 unseen (mean) | `exp` | **0.0723 ± 0.0020** | 0.9134 ± 0.0139 | 0.0534 ± 0.0012 | 0.1761 ± 0.0107 |
+| C1  smooth IC, flat bed | `elu_scaled` | **0.0234 ± 0.0012** | 0.3143 ± 0.0155 | 0.0250 ± 0.0012 | 0.1848 ± 0.0129 |
+| C2  smooth IC, bump bed | `elu_scaled` | **0.0290 ± 0.0031** | 0.2051 ± 0.0216 | 0.0311 ± 0.0033 | 0.1757 ± 0.0124 |
+| C3  dam break (OOD) | `elu_scaled` | **0.1790 ± 0.0364** | 0.8275 ± 0.1681 | 0.2750 ± 0.0559 | 0.5450 ± 0.0419 |
+| C4  100 unseen (mean) | `elu_scaled` | **0.0760 ± 0.0018** | 0.9497 ± 0.0086 | 0.0562 ± 0.0007 | 0.1842 ± 0.0024 |
 
-- Against the manuscript's ε_h = 1.17e-2, C1 is **0.0282** — 2.4× higher
+- Against the manuscript's ε_h = 1.17e-2, C1 is **0.0256** — 2.2× higher
   once the reference is converged rather than diffused. Part of the original figure was
   the operator matching a smeared target.
-- **The corrected IC shortcut costs 2.4× on operator generalisation**: C4 goes 0.0303 → 0.0718,
-  with error bars small enough that this is not noise. On the anomaly metric `exp`
-  reaches 0.91, i.e. it barely captures the wave on unseen pairs.
 - ε_hu(anomaly) equals ε_hu(total) by construction — the rest state for hu is zero, so
   there is no background to subtract. Report one column.
 
-**Recommendation.** `shifted` is exact at t = 0 (1.19e-7) and fails only the *hard floor*
-guarantee, which was never approached in training — that test drove F = −50 artificially.
-It fixes the real defect at no accuracy cost. Present `exp`/`softplus` as buying a
-guarantee at a measured price, not as a free correction.
+### The IC shortcut fix is not free, and not for the reason expected
+
+| ic_mode | C1 | C2 | C4 (100 unseen) | C4 vs `paper` |
+|---|---|---|---|---|
+| `paper` | 0.0256 | 0.0340 | **0.0321 ± 0.0008** | 1.00× |
+| `exp` | 0.0236 | 0.0306 | **0.0723 ± 0.0020** | 2.25× |
+| `elu_scaled` | 0.0234 | 0.0290 | **0.0760 ± 0.0018** | 2.37× |
+
+`elu_scaled` was added to test a specific hypothesis: that `exp`'s 2.3× penalty on unseen
+pairs comes from exponential amplification of the correction field. It is exact at t = 0
+and floored exactly as `exp` is, but grows *linearly* in F. **The hypothesis is wrong** —
+`elu_scaled` costs 2.37×,
+marginally worse than `exp`'s 2.25×.
+
+What `exp` and `elu_scaled` share is the **multiplicative** form
+`b + h_min + (h₀ − b − h_min)·s(tF)`, where the correction's authority scales with the
+local depth above the floor: near-zero where the water is shallow over a bump, large
+where it is deep. The paper's Eq. (12) is additive inside the ELU and gives uniform
+authority. That coupling, not the growth rate, is what costs 2.3× on unseen bathymetry.
+
+Note the split: on C1 and C2 both floored variants are **slightly better** than `paper`.
+The penalty is specific to operator generalisation across unseen (h₀, b) pairs.
+
+**Recommendation.** `shifted` — Eq. (12) with ε moved inside the ELU — is exact at t = 0
+(1.19e-7), keeps the paper's additive form, and carries no measured accuracy cost. It
+fixes the defect that matters. The hard floor that `exp`/`elu_scaled`/`softplus` add is a
+guarantee against a condition never approached in training (that test drove F = −50
+artificially), and it now has a measured price of 2.3× on C4. Take the cheap fix.
 
 ### 4.2 BC × IC × residual factorial — the h₀-vs-lake question
 
@@ -310,14 +365,14 @@ Physics-only training on C2, 3000 steps per cell:
 
 | residual | ic_mode | BC | L_PDE | d(h₀) | d(lake) | gap | verdict |
 |---|---|---|---|---|---|---|---|
-| `time_only` | `paper` | on | 1.887e-09 | 0.0028 | 4.3557 | 0.999 | **h0** |
-| `time_only` | `paper` | off | 4.689e-06 | 0.0221 | 4.3494 | 0.995 | **h0** |
-| `time_only` | `exp` | on | 5.771e-10 | 0.0002 | 4.3557 | 1.000 | **h0** |
-| `time_only` | `exp` | off | 7.701e-10 | 0.0002 | 4.3556 | 1.000 | **h0** |
-| `full` | `paper` | on | 1.395e+00 | 10.4522 | 9.5280 | 0.088 | **neither** |
-| `full` | `paper` | off | 1.032e+00 | 11.3736 | 8.7370 | 0.232 | **lake** |
-| `full` | `exp` | on | 3.690e-01 | 5.7576 | 2.7194 | 0.528 | **lake** |
-| `full` | `exp` | off | 1.737e-01 | 6.0184 | 2.4787 | 0.588 | **lake** |
+| `time_only` | `paper` | on | 1.614e-07 | 0.0023 | 4.3556 | 0.999 | **h0** |
+| `time_only` | `paper` | off | 8.110e+00 | 38.4975 | 38.1547 | 0.009 | **neither** |
+| `time_only` | `exp` | on | 4.101e-10 | 0.0001 | 4.3557 | 1.000 | **h0** |
+| `time_only` | `exp` | off | 1.405e-09 | 0.0002 | 4.3557 | 1.000 | **h0** |
+| `full` | `paper` | on | 2.615e+00 | 14.9924 | 14.4483 | 0.036 | **neither** |
+| `full` | `paper` | off | 5.608e-01 | 6.2024 | 3.5917 | 0.421 | **lake** |
+| `full` | `exp` | on | 4.576e-01 | 5.8825 | 2.3613 | 0.599 | **lake** |
+| `full` | `exp` | off | 2.122e-01 | 6.1647 | 2.4374 | 0.605 | **lake** |
 
 **All four `time_only` cells land on h₀** to four decimal places, with L_PDE ~1e-9.
 **No `full` cell reaches h₀**; three go to the lake state and the fourth — the one with
@@ -352,6 +407,30 @@ Readings:
 
 Report one row, name the protocol in the caption, and make all three places agree.
 
+### 4.4 Fig. 6 and Table 4 row A0, regenerated with the full residual
+
+Both were produced with v6's truncated residual, whose global minimum *is* F = 0, so
+they documented that residual rather than physics-informed training. Regenerated here
+under both residuals, physics-only on C1 at 5000 steps, with the depth
+error measured against the well-balanced reference instead of against h₀.
+
+| residual | ε_h | F0-gap [m] | final L_PDE |
+|---|---|---|---|
+| R₂ = ∂ₜ(hu) (v6) | 1.982e-01 | 0.1126 | 4.289e-02 |
+| full momentum | 2.059e-01 | 0.2066 | 8.076e-01 |
+| data-guided 40k (reference) | 2.556e-02 | — | — |
+
+Physics-only training fails under **both** residuals — ε_h ≈ 0.20 against 0.026
+for the data-guided model, roughly 8× worse. That much of the original Fig. 6 survives.
+
+What changes is the mechanism. The truncated residual pulls toward h₀ — its F0-gap is
+0.113 against 0.207 for the full one, and its
+residual settles at 4.3e-02 against 8.1e-01 — because
+F = 0 *is* its minimum. The full residual has no such attractor and simply fails to
+converge. Caption Fig. 6 as "physics-only training fails", not as "the model collapses
+to the F = 0 state": the collapse is a property of the truncated residual.
+
+
 ---
 
 ## Reproducibility
@@ -369,9 +448,23 @@ pinned TF 2.13 CPU image).
 | Speedup at batch 100 | 2329×, 2376×, 2434× vs serial on GPU |
 | **Fusion ablation** | **single-seed rankings disagreed across all three early runs** |
 
-The last row is why the ablation is reported as a paired contrast over seeds rather than
-a ranking. Three separate single-seed runs picked three different winners on C1 and on
-C2b; one put all three fusions within 0.5%.
+The last row is why the ablation is reported as a paired contrast and a
+difference-in-differences rather than a ranking. Three separate single-seed runs picked
+three different winners on C1 and on C2b; one put all three fusions within 0.5%; and the
+promising three-seed contrast on C2b did not reproduce at five seeds (§3.2).
+
+**Nondeterminism at fixed seed.** Two runs with identical seeds (42, 43, 44) and identical
+training data give C1 `paper` ε_h = 0.0282 and 0.0256 — a shift comparable to the
+seed-to-seed standard deviation itself. TensorFlow is not run-to-run deterministic here
+(cuDNN autotuning, non-associative reductions), and 40k steps amplify it. The quoted ± is
+therefore seed-to-seed at fixed hardware and *understates* total variability; say so in
+the caption, or enable deterministic ops and pay the throughput.
+
+One factorial cell also diverged in this run where it had converged before
+(`time_only`/`paper`/BC-off, L_PDE = 8.1, both distances ≈ 38). Physics-only training has
+no data anchor, so it is the most nondeterminism-sensitive thing here. The qualitative
+conclusion is unaffected — see §4.2 — but report L_PDE alongside the verdict so an
+unconverged cell cannot be mistaken for a result.
 
 Two runs were lost to a CPU-only Kaggle image (6.05 h each instead of ~1.5 h, with the
 seed sweeps silently reduced to one seed). The notebook now refuses to start Parts 2–4
@@ -422,9 +515,13 @@ without a GPU.
 
 **§3.4.2, Table 4 — fusion**
 
-- Delete the claim that the trunk mediates the h₀–b interaction; the trunks take only
-  (x, t).
-- Report the paired contrast and the C2b construction, not a ranking.
+- Delete the claim that the trunk mediates the h₀–b interaction. The trunks take only
+  (x, t); this needs no experiment.
+- State the separability argument on its own terms: β = B₁(h₀) + B₂(b) is additively
+  separable, the source −gh ∂ₓb is not.
+- **Do not claim the ablation supports it.** Over five seeds no paired contrast and no
+  difference-in-differences is significant (§3.2). Either report the null, or drop Table 4
+  and argue from the architecture alone. A referee who reruns it will get what we got.
 - Report the true 10k-step numbers for A3 rather than repeating the 40k values.
 
 **§4.9, Table 5 — speedup**
@@ -441,27 +538,15 @@ without a GPU.
 
 ## Still open
 
-Queued for the next run (notebook `2026-08-10`), all three affecting what §4.1 and
-§3.2 above can claim:
-
-- **`elu_scaled` at 40k.** A fourth shortcut, `b + h_min + (h₀−b−h_min)(elu(tF)+1)`:
-  exact at t = 0 and floored exactly as `exp` is, but **linear** in the correction field
-  rather than exponential. Exponential amplification of F is the obvious suspect for the
-  2.4× C4 penalty. If `elu_scaled` matches `paper` on C4, the IC fix is free and the
-  "guarantee at a measured price" framing in §4.1 should be deleted rather than softened.
-- **Five ablation seeds with difference-in-differences.** The primary statistic becomes
-  (add − concat)|C2b − (add − concat)|C1: differencing against the flat-bed control
-  cancels any across-the-board advantage of one fusion and isolates the bathymetry
-  interaction, which is the actual claim. df goes from 2 to 4.
-- **Fig. 6 and Table 4 row A0 with the full residual.** Both were produced with v6's
-  truncated residual, whose global minimum *is* F = 0, so they document that residual
-  rather than physics-informed training. §4.5 regenerates them with the momentum flux
-  and bed source restored, with the depth error measured against the well-balanced
-  reference instead of against h₀.
-
-Not queued:
-
-- **`softplus` at 40k.** Untested at the production budget. Worth adding to
-  `CFG["IC_MODES_40K"]` only if `elu_scaled` fails to recover the gap.
+- **A fusion experiment with power, or none at all.** Five seeds at 15k steps cannot
+  separate the variants. Either the effect is smaller than the seed noise, or 15k steps is
+  too short for the coupling to matter. A longer budget on C2b alone, or a construction
+  with stronger coupling than a 0.5 m bump, would be a real test; more seeds at these
+  settings would only tighten a null.
+- **`softplus` at 40k.** Untested at the production budget. Given that `exp` and
+  `elu_scaled` both cost ~2.3× on C4, the multiplicative form is the suspect and
+  `softplus` shares it, so this is now a confirmation rather than a hope.
+- **Run-to-run determinism.** Enabling `TF_DETERMINISTIC_OPS` would make the ± in Table 3
+  mean what it appears to mean. Worth the throughput if the numbers go in an abstract.
 - **C3 is not a clean benchmark.** It is non-periodic and solved with a periodic solver,
   as in v6. Either label it a stress test or give it a non-periodic reference.
