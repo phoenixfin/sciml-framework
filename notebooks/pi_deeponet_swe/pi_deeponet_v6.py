@@ -150,6 +150,11 @@ class PIDeepONetSWE(tf.keras.Model):
         if self.ic_mode == "paper":
             h_pred = (tf.nn.elu(h0_at_x + t * F_h - (b_at_x + H_MIN))
                       + (b_at_x + H_MIN) + EPS)
+        elif self.ic_mode == "shifted":
+            # Eq. (12) with EPS moved inside the ELU: exact at t=0, same additive
+            # form and same (absent) floor guarantee as the published shortcut
+            h_pred = (tf.nn.elu(h0_at_x + t * F_h - (b_at_x + H_MIN) - EPS)
+                      + (b_at_x + H_MIN) + EPS)
         elif self.ic_mode == "exp":
             d = tf.maximum(h0_at_x - b_at_x - H_MIN, 1e-6)
             h_pred = b_at_x + H_MIN + d * tf.exp(tf.clip_by_value(t * F_h, -20.0, 20.0))
@@ -162,6 +167,61 @@ class PIDeepONetSWE(tf.keras.Model):
 
     def build_once(self):
         """Warm-up call so ``trainable_variables`` is populated."""
+        d = tf.zeros((2, self.m))
+        self(d, d, tf.zeros((4, 2)), tf.ones((2, 4)), tf.zeros((2, 4)))
+        return self
+
+
+class SharedBranchDeepONet(tf.keras.Model):
+    """A1: one shared beta feeding both outputs (v6 §18). Couples the h and hu
+    heads, which is what triggers the BC collapse the ablation is meant to show."""
+
+    def __init__(self, m=M, p=P):
+        super().__init__()
+        hid = [128, 128, 128]
+        self.m, self.p = m, p
+        self.b1 = make_mlp(m, hid, p, "b1_shared")
+        self.b2 = make_mlp(m, hid, p, "b2_shared")
+        self.th = make_mlp(2, hid, p, "th_shared", out_std=0.1)
+        self.thu = make_mlp(2, hid, p, "thu_shared", out_std=0.1)
+
+    def call(self, h0s, bs, xt, h0_at_x, b_at_x):
+        t = tf.transpose(xt[:, 1:2])
+        beta = self.b1(h0s) + self.b2(bs)                      # shared
+        F_h = tf.linalg.matmul(beta, tf.transpose(self.th(xt)))
+        F_hu = tf.linalg.matmul(beta, tf.transpose(self.thu(xt)))
+        h_pred = (tf.nn.elu(h0_at_x + t * F_h - (b_at_x + H_MIN))
+                  + (b_at_x + H_MIN) + EPS)
+        return h_pred, t * F_hu
+
+    def build_once(self):
+        d = tf.zeros((2, self.m))
+        self(d, d, tf.zeros((4, 2)), tf.ones((2, 4)), tf.zeros((2, 4)))
+        return self
+
+
+class NoICShortcutDeepONet(tf.keras.Model):
+    """A2: separate branches, no analytic IC shortcut (v6 §18). The initial
+    condition is imposed by a loss term instead, so the outputs are raw."""
+
+    def __init__(self, m=M, p=P):
+        super().__init__()
+        hid = [128, 128, 128]
+        self.m, self.p = m, p
+        self.b1h = make_mlp(m, hid, p, "b1h_noic")
+        self.b2h = make_mlp(m, hid, p, "b2h_noic")
+        self.b1hu = make_mlp(m, hid, p, "b1hu_noic")
+        self.b2hu = make_mlp(m, hid, p, "b2hu_noic")
+        self.th = make_mlp(2, hid, p, "th_noic", out_std=0.1)
+        self.thu = make_mlp(2, hid, p, "thu_noic", out_std=0.1)
+
+    def call(self, h0s, bs, xt, h0_at_x, b_at_x):
+        bh = self.b1h(h0s) + self.b2h(bs)
+        bhu = self.b1hu(h0s) + self.b2hu(bs)
+        return (tf.linalg.matmul(bh, tf.transpose(self.th(xt))),
+                tf.linalg.matmul(bhu, tf.transpose(self.thu(xt))))
+
+    def build_once(self):
         d = tf.zeros((2, self.m))
         self(d, d, tf.zeros((4, 2)), tf.ones((2, 4)), tf.zeros((2, 4)))
         return self
@@ -199,12 +259,21 @@ class Bundle:
         self.xt_snaps = [
             tf.constant(np.stack([x_grid_np, np.full(GRID, t)], 1).astype(np.float32))
             for t in self.t_snaps]
+        self._D_h, self._D_hu = list(D_h), list(D_hu)     # kept for .subset()
+        self._sup_idx = np.asarray(sup_idx)
         self.D_h_tf = [tf.constant(a) for a in D_h]
         self.D_hu_tf = [tf.constant(a) for a in D_hu]
         self.D_H0s = tf.constant(H0_s[sup_idx])
         self.D_Bs = tf.constant(B_s[sup_idx])
         self.D_H0g = tf.constant(H0_grid[sup_idx])
         self.D_Bg = tf.constant(B_grid[sup_idx])
+
+
+    def subset(self, n):
+        """A bundle supervised on only the first n trajectories (pool unchanged)."""
+        return Bundle(self.H0_s, self.B_s, self.H0_grid, self.B_grid,
+                      [a[:n] for a in self._D_h], [a[:n] for a in self._D_hu],
+                      self._sup_idx[:n], self.t_snaps)
 
 
 def build_bundle(x_src, h0_all, b_all, h_snaps, hu_snaps, t_snaps, n_sup=None):
@@ -303,6 +372,72 @@ def train_model(mdl, bd, n_iter, seed=42, log_every=1000, verbose=True):
     if verbose:
         print(f"  training done in {(time.time() - t_start) / 60:.1f} min")
     return history
+
+
+def make_ablation_step(mdl, opt, bd, lam_bc=5.0, lam_ic=10.0, use_ic_shortcut=True):
+    """v6 §18's step: the supervised step plus an optional explicit IC loss.
+
+    A2 has no analytic shortcut, so the initial condition has to be imposed by a
+    penalty. ``lam_ic`` and the t=0 query grid follow v6.
+    """
+    lbc = tf.constant(lam_bc, tf.float32)
+    lic = tf.constant(lam_ic, tf.float32)
+    xt_ic = tf.constant(np.stack([x_grid_np, np.zeros(GRID)], 1).astype(np.float32))
+
+    @tf.function(reduce_retracing=True)
+    def step(h0_b, b_b, h0_g, b_g, t_bc, h0_ic_s, b_ic_s, h0_ic_g, b_ic_g):
+        x0 = tf.zeros_like(t_bc)
+        xL = tf.fill(tf.shape(t_bc), L)
+        h0_bcl = grid_interp(h0_g, x0); h0_bcr = grid_interp(h0_g, xL)
+        b_bcl = grid_interp(b_g, x0); b_bcr = grid_interp(b_g, xL)
+        with tf.GradientTape() as tape:
+            Ld = tf.constant(0.0)
+            for s in range(bd.n_snaps):
+                hp, hup = mdl(bd.D_H0s, bd.D_Bs, bd.xt_snaps[s], bd.D_H0g, bd.D_Bg)
+                Ld = Ld + (tf.reduce_mean((hp - bd.D_h_tf[s]) ** 2)
+                           + LAM_HU * tf.reduce_mean((hup - bd.D_hu_tf[s]) ** 2))
+            Ld = Ld / tf.cast(bd.n_snaps, tf.float32)
+            hl, hul = mdl(h0_b, b_b, tf.stack([x0, t_bc], 1), h0_bcl, b_bcl)
+            hr, hur = mdl(h0_b, b_b, tf.stack([xL, t_bc], 1), h0_bcr, b_bcr)
+            Lb = tf.reduce_mean((hl - hr) ** 2 + (hul - hur) ** 2)
+            loss = Ld + lbc * Lb
+            if not use_ic_shortcut:
+                hp_ic, hup_ic = mdl(h0_ic_s, b_ic_s, xt_ic, h0_ic_g, b_ic_g)
+                loss = loss + lic * tf.reduce_mean((hp_ic - h0_ic_g) ** 2 + hup_ic ** 2)
+        gs = tape.gradient(loss, mdl.trainable_variables)
+        gs, gn = tf.clip_by_global_norm(gs, 1.0)
+        opt.apply_gradients(zip(gs, mdl.trainable_variables))
+        return loss, Ld, Lb, gn
+
+    return step
+
+
+def train_arch_variant(mdl, bd, n_iter, use_ic_shortcut=True, seed=0,
+                       log_every=2000, verbose=True):
+    """Training loop for the A1 / A2 / A3 architecture ablation."""
+    rng = np.random.default_rng(seed)
+    opt = make_optimizer()
+    step = make_ablation_step(mdl, opt, bd, use_ic_shortcut=use_ic_shortcut)
+    n_ic = min(BATCH, bd.n_sup)
+    hist = {"iter": [], "Ld": [], "Lb": []}
+    t0 = time.time()
+    for it in range(1, n_iter + 1):
+        idx = rng.choice(bd.n_pool, BATCH, replace=False)
+        ic = rng.choice(bd.n_sup, n_ic, replace=False)
+        _, Ld, Lb, _ = step(
+            tf.constant(bd.H0_s[idx]), tf.constant(bd.B_s[idx]),
+            tf.constant(bd.H0_grid[idx]), tf.constant(bd.B_grid[idx]),
+            tf.constant(rng.uniform(0, T_np, N_BC).astype(np.float32)),
+            tf.gather(bd.D_H0s, ic), tf.gather(bd.D_Bs, ic),
+            tf.gather(bd.D_H0g, ic), tf.gather(bd.D_Bg, ic))
+        if it % log_every == 0 or it == n_iter:
+            hist["iter"].append(it)
+            hist["Ld"].append(float(Ld))
+            hist["Lb"].append(float(Lb))
+            if verbose:
+                print(f"    {it:6d}  Ld={float(Ld):.3e}  Lb={float(Lb):.3e}"
+                      f"  ({time.time() - t0:.0f}s)")
+    return hist
 
 
 # ----------------------------------------------------------------------
