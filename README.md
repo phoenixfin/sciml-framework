@@ -268,26 +268,30 @@ results A1–A4 and B1–B4, and the remaining experiment plan) are in
 
 ## The SWE study — reference-solver audit
 
+<!-- BEGIN swe-findings -->
+
 The DeepONet/SWE example is a refactor of `pi_deeponet_swe_v6`. That notebook was
 audited end to end — reference solver, theory, metrics, ablations — and the
-findings are consolidated in
-[`notebooks/pi_deeponet_swe/RESULTS.md`](notebooks/pi_deeponet_swe/RESULTS.md).
-Every number there is generated from one unattended run whose raw record
-(`results_2026-08-12.json`) sits beside it, and the run itself is reproducible
-from a single notebook.
+findings are consolidated in [`RESULTS.md`](notebooks/pi_deeponet_swe/RESULTS.md). Every number there
+and below is generated from one unattended run whose raw record
+([`results_2026-08-12.json`](notebooks/pi_deeponet_swe/results_2026-08-12.json)) sits
+beside it; regenerate both with
+`python notebooks/pi_deeponet_swe/build_report.py`.
 
 > ### Caveat for anyone using `solvers/swe_lax_friedrichs`
 >
 > At the settings the example ships with (`nx=400`, `nt=4000`) the **measured CFL
-> is 0.038**, not the ~0.45 one might assume — and Lax-Friedrichs viscosity
-> *grows* as Δt falls at fixed Δx, so a "safe" small timestep makes it worse.
-> Against a converged reference the resulting field is **6.4 × 10⁻²** relative,
-> which is **84% of the wave anomaly**, and it flattens peak-to-peak amplitude to
-> 0.071 m against a true 0.237 m.
+> is 0.038**, not the ~0.45 one might assume — and
+> Lax-Friedrichs viscosity *grows* as Δt falls at fixed Δx, so a conservatively
+> small timestep makes it worse. Against a converged reference the resulting field
+> is **6.4e-02** relative, which is
+> **84% of the wave anomaly**, and it flattens
+> peak-to-peak amplitude to 0.071 m against a true
+> 0.237 m.
 >
 > A well-balanced HLL solver (Audusse hydrostatic reconstruction, minmod-MUSCL,
-> SSP-RK2) reaching **8.9 × 10⁻³** on the same grid — and exact to machine
-> precision on lake-at-rest — is in
+> SSP-RK2) reaching **8.9e-03** on the same grid — and exact to
+> machine precision on lake-at-rest — is in
 > [`notebooks/pi_deeponet_swe/swe_solvers.py`](notebooks/pi_deeponet_swe/swe_solvers.py).
 > Prefer it whenever the reference error competes with what you are measuring.
 
@@ -295,27 +299,29 @@ from a single notebook.
 
 | | |
 |---|---|
-| **Reference error dominated the budget** | The training targets were `6.4e-2` relative against a converged solution, versus `8.9e-3` for a well-balanced scheme on the same grid. Operator errors measured against them were flattered accordingly. |
-| **Benchmark C1 is not smooth** | It develops a shock at **t ≈ 0.78 s**: `max|∂h/∂x|` doubles at every refinement (2.14 → 30.66 from nx=400 to 6400) instead of saturating. |
-| **The PI failure was a property of the residual** | The implemented momentum residual is `∂ₜ(hu)` alone, with no flux divergence or bed source. `F = 0` is its **exact global minimum**, so the reported collapse is guaranteed by construction. With the full residual, training leaves for the lake-at-rest manifold instead. |
-| **The stationarity claim is half true** | The trunk gradient and the **mass** residual vanish identically at `F = 0`; the branch gradient does not, unless the state is already lake-at-rest. |
-| **The IC shortcut had two defects** | It was off by ε at t=0, and its positivity bound was false (depth reaches **−0.95 m** under stress). Moving ε inside the ELU fixes exactness at **no measured cost** (0.99–1.03× on unseen pairs); multiplicative alternatives cost **2.4×**. |
-| **The t=1 s oscillations are Gibbs ringing** | Across the shock, error concentration rises `1.7 → 3.0` and the high-wavenumber share of error power rises `0.11 → 0.47`. Finite trunk resolution would have raised both at *all* times. |
-| **Half the architecture ablation survives** | At a matched 40k budget the IC shortcut is worth **1.6×**, but a shared branch is indistinguishable from separate branch pairs, and branch fusion is a **null over five seeds**. |
-| **The operator is resolution-free** | ε_h varies by **4.5%** across a 32× range of query grids. Extrapolation past the training horizon is useful for about **10%** of it. |
-| **Honest speedup** | **2297×** against a serial reference solver, **356×** against a vectorised one. |
+| **Reference error dominated the budget** | The training targets were `6.4e-02` relative against a converged solution — **84% of the wave anomaly** — versus `8.9e-03` for a well-balanced scheme on the same grid. Operator errors measured against them were flattered accordingly. ([§1.5](notebooks/pi_deeponet_swe/RESULTS.md#15-error-budget-against-a-converged-reference)) |
+| **Benchmark C1 is not smooth** | It develops a shock at **t ≈ 0.78 s**: `max` of the depth gradient doubles at every refinement (2.14 → 30.66 from nx=400 to 6400) instead of saturating. ([§1.4](notebooks/pi_deeponet_swe/RESULTS.md#14-shock-formation-in-benchmark-c1)) |
+| **The PI failure was a property of the residual** | The implemented momentum residual is `∂ₜ(hu)` alone, with no flux divergence or bed source. `F = 0` is its **exact global minimum**, so the reported collapse is guaranteed by construction. With the full residual, training leaves for the lake-at-rest manifold instead. ([§4.2](notebooks/pi_deeponet_swe/RESULTS.md#42-bc-ic-residual-factorial-the-h₀-vs-lake-question)) |
+| **The stationarity claim is half true** | The trunk gradient and the **mass** residual vanish identically at `F = 0`; the branch gradient does not, unless the state is already lake-at-rest. ([§2.1](notebooks/pi_deeponet_swe/RESULTS.md#21-trunk-branch-gradient-split-at-f-0)) |
+| **The IC shortcut had two defects** | Off by ε at t=0, and its positivity bound was false — depth reaches **−0.95 m** under stress. Moving ε inside the ELU fixes exactness at **no measured cost** (0.99× on unseen pairs); multiplicative alternatives cost **2.4×**. ([§2.5](notebooks/pi_deeponet_swe/RESULTS.md#25-ic-shortcut-variants), [§4.1](notebooks/pi_deeponet_swe/RESULTS.md#41-table-3-errors-against-the-well-balanced-reference)) |
+| **The t=1 s oscillations are Gibbs ringing** | Across the shock, error concentration rises `1.7 → 3.0` and the high-wavenumber share of error power rises `0.11 → 0.47`. Finite trunk resolution would have raised both at *all* times. ([§4.8](notebooks/pi_deeponet_swe/RESULTS.md#48-where-the-t-1-s-error-sits-the-gibbs-claim-supported)) |
+| **Half the architecture ablation survives** | At a matched 40k budget the IC shortcut is worth **1.6×**, but a shared branch is indistinguishable from separate branch pairs, and branch fusion is a **null over five seeds**. ([§4.6](notebooks/pi_deeponet_swe/RESULTS.md#46-table-4-rows-a1-a2-a3-at-a-common-budget), [§3.2](notebooks/pi_deeponet_swe/RESULTS.md#32-table-4-branch-fusion-ablation)) |
+| **The operator is resolution-free** | ε_h varies by **4.5%** across a 32× range of query grids. Extrapolation past the training horizon is useful for about **10%** of it. ([§4.9](notebooks/pi_deeponet_swe/RESULTS.md#49-query-resolution-independence), [§4.10](notebooks/pi_deeponet_swe/RESULTS.md#410-extrapolation-past-the-training-horizon)) |
+| **Honest speedup** | **2297×** against a serial reference solver, **356×** against a vectorised one. ([§3.3](notebooks/pi_deeponet_swe/RESULTS.md#33-table-5-like-for-like-speedup)) |
 
-### Method notes worth reusing
+#### Method notes worth reusing
 
-- **Single-seed ablations flipped their winners** across runs on identical
-  settings. The study reports paired-by-seed contrasts and a
-  difference-in-differences against a no-coupling control instead of a ranking.
+- **Single-seed ablations flipped their winners** across runs on identical settings.
+  This study reports paired-by-seed contrasts and a difference-in-differences against
+  a no-coupling control instead of a ranking.
 - **Reference-data error belongs in the error budget.** Quoting an operator error
-  without auditing the solver that produced its targets can be off by more than
-  the effect under study.
+  without auditing the solver that produced its targets can be off by more than the
+  effect under study.
 - **Normalisation matters**: `‖h‖`-relative error is flattered by the constant
-  background depth by 10–22× depending on the snapshot. The study reports
-  anomaly-relative error and dimensional RMSE alongside it.
+  background depth by 10–22× depending on the snapshot.
+  Anomaly-relative error and dimensional RMSE are reported alongside it.
+
+<!-- END swe-findings -->
 
 ---
 

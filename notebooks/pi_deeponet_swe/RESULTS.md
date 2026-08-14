@@ -2,7 +2,7 @@
 
 Every number below comes from one unattended Kaggle run of
 [`kaggle_swe_revision_all.ipynb`](kaggle_swe_revision_all.ipynb); the raw record is
-[`results_2026-08-12.json`](results_2026-08-12.json), and this file is generated from it.
+[`results_2026-08-12.json`](results_2026-08-12.json), and this file is generated from it
 
 | | |
 |---|---|
