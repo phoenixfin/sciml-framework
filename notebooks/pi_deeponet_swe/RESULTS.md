@@ -20,6 +20,34 @@ deterministic given the seed and were bit-identical across every run that comput
 
 ---
 
+## Headline findings
+
+| | |
+|---|---|
+| **Reference error dominated the budget** | The training targets were `6.4e-02` relative against a converged solution — **84% of the wave anomaly** — versus `8.9e-03` for a well-balanced scheme on the same grid. Operator errors measured against them were flattered accordingly. ([§1.5](#15-error-budget-against-a-converged-reference)) |
+| **Benchmark C1 is not smooth** | It develops a shock at **t ≈ 0.78 s**: `max` of the depth gradient doubles at every refinement (2.14 → 30.66 from nx=400 to 6400) instead of saturating. ([§1.4](#14-shock-formation-in-benchmark-c1)) |
+| **The PI failure was a property of the residual** | The implemented momentum residual is `∂ₜ(hu)` alone, with no flux divergence or bed source. `F = 0` is its **exact global minimum**, so the reported collapse is guaranteed by construction. With the full residual, training leaves for the lake-at-rest manifold instead. ([§4.2](#42-bc-ic-residual-factorial-the-h₀-vs-lake-question)) |
+| **The stationarity claim is half true** | The trunk gradient and the **mass** residual vanish identically at `F = 0`; the branch gradient does not, unless the state is already lake-at-rest. ([§2.1](#21-trunk-branch-gradient-split-at-f-0)) |
+| **The IC shortcut had two defects** | Off by ε at t=0, and its positivity bound was false — depth reaches **−0.95 m** under stress. Moving ε inside the ELU fixes exactness at **no measured cost** (0.99× on unseen pairs); multiplicative alternatives cost **2.4×**. ([§2.5](#25-ic-shortcut-variants), [§4.1](#41-table-3-errors-against-the-well-balanced-reference)) |
+| **The t=1 s oscillations are Gibbs ringing** | Across the shock, error concentration rises `1.7 → 3.0` and the high-wavenumber share of error power rises `0.11 → 0.47`. Finite trunk resolution would have raised both at *all* times. ([§4.8](#48-where-the-t-1-s-error-sits-the-gibbs-claim-supported)) |
+| **Half the architecture ablation survives** | At a matched 40k budget the IC shortcut is worth **1.6×**, but a shared branch is indistinguishable from separate branch pairs, and branch fusion is a **null over five seeds**. ([§4.6](#46-table-4-rows-a1-a2-a3-at-a-common-budget), [§3.2](#32-table-4-branch-fusion-ablation)) |
+| **The operator is resolution-free** | ε_h varies by **4.5%** across a 32× range of query grids. Extrapolation past the training horizon is useful for about **10%** of it. ([§4.9](#49-query-resolution-independence), [§4.10](#410-extrapolation-past-the-training-horizon)) |
+| **Honest speedup** | **2297×** against a serial reference solver, **356×** against a vectorised one. ([§3.3](#33-table-5-like-for-like-speedup)) |
+
+### Method notes worth reusing
+
+- **Single-seed ablations flipped their winners** across runs on identical settings.
+  This study reports paired-by-seed contrasts and a difference-in-differences against
+  a no-coupling control instead of a ranking.
+- **Reference-data error belongs in the error budget.** Quoting an operator error
+  without auditing the solver that produced its targets can be off by more than the
+  effect under study.
+- **Normalisation matters**: `‖h‖`-relative error is flattered by the constant
+  background depth by 10–22× depending on the snapshot.
+  Anomaly-relative error and dimensional RMSE are reported alongside it.
+
+---
+
 ## What this changes in the manuscript
 
 | Claim as written | What the run shows |
