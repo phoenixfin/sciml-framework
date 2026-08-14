@@ -2,12 +2,12 @@
 
 Every number below comes from one unattended Kaggle run of
 [`kaggle_swe_revision_all.ipynb`](kaggle_swe_revision_all.ipynb); the raw record is
-[`results_2026-08-11.json`](results_2026-08-11.json), and this file is generated from it.
+[`results_2026-08-12.json`](results_2026-08-12.json), and this file is generated from it.
 
 | | |
 |---|---|
-| Notebook version | `2026-08-11  + interaction strength, shifted@40k, eps(t), A1/A2/A3, N_d sweep` |
-| Wall clock | 301.7 min |
+| Notebook version | `2026-08-12  final: shock localisation, A1/A2/A3 at 40k, resolution, extrapolation` |
+| Wall clock | 338.9 min |
 | TensorFlow | 2.20.0, 2 GPU(s), legacy Keras: True |
 | Parts run | part1, part3, part4 |
 | Supervised trajectories | 152 of 502 sampled, nx = 400 |
@@ -26,13 +26,14 @@ deterministic given the seed and were bit-identical across every run that comput
 |---|---|
 | §3.3 "CFL number of approximately 0.45" | measured **0.0384** at `nx=400, nt=4000`; CFL 0.45 needs `nt=323`, not 4000 |
 | §3.3 reference-solver error is negligible against operator error | the LxF reference is **0.064** relative (**0.835** on the wave anomaly); the well-balanced solver on the same grid is **0.0089** |
-| §4.2 C1 is smooth; t=1 s oscillations are trunk spectral resolution | C1 **develops a shock at t ≈ 0.78 s** (§1.4). The shock is certain; attributing the oscillations to it is not — ε_h(t) shows no step there (§4.5) |
+| §4.2 C1 is smooth; t=1 s oscillations are trunk spectral resolution | C1 **develops a shock at t ≈ 0.78 s** (§1.4), and the error localises onto it: concentration 1.7 → 3.0 and high-wavenumber share 0.11 → 0.47 between the smooth and shocked times (§4.9). **The Gibbs reading is supported** |
 | Proposition 1: ∇θ L_PDE = 0 at F = 0 | true for the **trunk** and for the **mass** residual only; the branch gradient is nonzero unless the state is lake-at-rest |
 | §3.5.1 "F = 0 attractor" | F = 0 is an exact minimum **of the implemented residual**, which omits the momentum flux and bed source; with the full residual training leaves for the **steady-state manifold** |
 | Eq. (12) guarantees ĥ ≥ b + h_min + ε | false: under stress ĥ reaches **−0.95 m** |
 | §3.7.3 / Remark 3 / Fig. 6: 6.6e12, 1.5e2, 2.2e1 | three protocols, three numbers; the 6.6e12 is not reproducible under any of five matched protocols |
-| §3.4.2 the h₀–b interaction is mediated through the trunk | the trunks take only (x, t), so this is wrong on inspection — but the fusion ablation **does not** corroborate it: over five seeds no paired contrast or difference-in-differences is significant (§3.2) |
-| Table 5 speedup | honest **2461× vs serial**, **354× vs a vectorised baseline** |
+| §3.4.2 the h₀–b interaction is mediated through the trunk | the trunks take only (x, t), so this is wrong on inspection. The fusion ablation does not corroborate it either (§3.2, null over five seeds), and §1.9 shows why: the coupling is real but the IC shortcut already supplies it |
+| Table 4: the separate branches and the IC shortcut are both necessary | at a matched 40k budget the **IC shortcut is worth 1.6×** (A2 0.0416 vs A3 0.0255) but the **shared branch matches the full model** (A1 0.0239). Half the ablation survives (§4.6) |
+| Table 5 speedup | honest **2297× vs serial**, **356× vs a vectorised baseline** |
 
 ---
 
@@ -106,7 +107,7 @@ The jump from 2.00 at t = 0.7 to 5.28 at t = 0.8 places shock formation at **t �
 ### 1.5 Error budget against a converged reference
 
 Reference: order-2 well-balanced HLL at nx = 12800,
-computed in 85 s.
+computed in 83 s.
 
 | scheme | CFL | ν [m²/s] | rel L2 | rel L2 (anomaly) | peak-to-peak h |
 |---|---|---|---|---|---|
@@ -125,7 +126,7 @@ Total momentum stays at **7.5e-15** — round-off.
 
 ### 1.7 Data regeneration
 
-- 152 supervised trajectories, ensemble-vectorised: **16.1 s** total, 106 ms each
+- 152 supervised trajectories, ensemble-vectorised: **14.8 s** total, 98 ms each
 - The manuscript quotes 66 s for this step, so the well-balanced solver at the correct
   CFL is **cheaper**, not more expensive. This strengthens the data-efficiency argument.
 
@@ -231,9 +232,9 @@ Two independent defects in Eq. (12): it is off by ε at t = 0, and the ELU floor
 
 ### 3.1 Operator conservation
 
-- DeepONet relative mass drift at T: **1.640e-02**
+- DeepONet relative mass drift at T: **2.079e-03**
 - Reference solver: 1.672e-16
-- Operator total momentum at T on a flat bed: **-6.908e-02** (should be 0)
+- Operator total momentum at T on a flat bed: **-2.040e-01** (should be 0)
 
 Percent-level mass violation is normal for a neural operator; reporting it is worth more
 than the number itself.
@@ -246,15 +247,15 @@ source term −gh ∂ₓb genuinely depends on the *product* of the two inputs.
 
 | case | fusion | ε_h (total) | ε_h (anomaly) | RMSE_h [m] | ε_hu |
 |---|---|---|---|---|---|
-| C1  flat bed | `add` | 0.0665 ± 0.0075 | 0.8918 ± 0.1003 | 0.0709 ± 0.0080 | 0.3525 ± 0.0224 |
-| C1  flat bed | `concat` | 0.0704 ± 0.0184 | 0.9442 ± 0.2465 | 0.0750 ± 0.0196 | 0.3652 ± 0.0321 |
-| C1  flat bed | `bilinear` | 0.0629 ± 0.0027 | 0.8430 ± 0.0359 | 0.0670 ± 0.0029 | 0.3643 ± 0.0423 |
-| C2  bump 0.2 m | `add` | 0.0906 ± 0.0203 | 0.6409 ± 0.1436 | 0.0973 ± 0.0218 | 0.3375 ± 0.0335 |
-| C2  bump 0.2 m | `concat` | 0.0911 ± 0.0213 | 0.6443 ± 0.1507 | 0.0978 ± 0.0229 | 0.3456 ± 0.0320 |
-| C2  bump 0.2 m | `bilinear` | 0.0826 ± 0.0049 | 0.5842 ± 0.0349 | 0.0887 ± 0.0053 | 0.3504 ± 0.0323 |
-| C2b bump 0.5 m (NEW) | `add` | 0.1547 ± 0.0497 | 0.7351 ± 0.2363 | 0.2314 ± 0.0744 | 0.4986 ± 0.0289 |
-| C2b bump 0.5 m (NEW) | `concat` | 0.1370 ± 0.0055 | 0.6511 ± 0.0264 | 0.2050 ± 0.0083 | 0.5172 ± 0.0277 |
-| C2b bump 0.5 m (NEW) | `bilinear` | 0.1353 ± 0.0182 | 0.6432 ± 0.0867 | 0.2025 ± 0.0273 | 0.4984 ± 0.0238 |
+| C1  flat bed | `add` | 0.0582 ± 0.0056 | 0.7810 ± 0.0747 | 0.0621 ± 0.0059 | 0.3741 ± 0.0194 |
+| C1  flat bed | `concat` | 0.0659 ± 0.0120 | 0.8837 ± 0.1611 | 0.0702 ± 0.0128 | 0.3440 ± 0.0186 |
+| C1  flat bed | `bilinear` | 0.0649 ± 0.0050 | 0.8704 ± 0.0671 | 0.0692 ± 0.0053 | 0.3635 ± 0.0266 |
+| C2  bump 0.2 m | `add` | 0.0772 ± 0.0142 | 0.5458 ± 0.1002 | 0.0828 ± 0.0152 | 0.3479 ± 0.0195 |
+| C2  bump 0.2 m | `concat` | 0.0837 ± 0.0165 | 0.5918 ± 0.1167 | 0.0898 ± 0.0177 | 0.3391 ± 0.0545 |
+| C2  bump 0.2 m | `bilinear` | 0.0918 ± 0.0053 | 0.6492 ± 0.0374 | 0.0985 ± 0.0057 | 0.3534 ± 0.0245 |
+| C2b bump 0.5 m (NEW) | `add` | 0.1460 ± 0.0305 | 0.6937 ± 0.1449 | 0.2184 ± 0.0456 | 0.5012 ± 0.0187 |
+| C2b bump 0.5 m (NEW) | `concat` | 0.1354 ± 0.0118 | 0.6436 ± 0.0561 | 0.2026 ± 0.0176 | 0.5301 ± 0.0428 |
+| C2b bump 0.5 m (NEW) | `bilinear` | 0.1512 ± 0.0216 | 0.7185 ± 0.1028 | 0.2262 ± 0.0324 | 0.5184 ± 0.0249 |
 
 Unpaired, every contrast overlaps. The variants share a seed, hence the same
 initialisation stream and batch order, so the **paired** difference removes that common
@@ -262,15 +263,15 @@ variance:
 
 | case | contrast | mean diff | std | t | better in |
 |---|---|---|---|---|---|
-| C1  flat bed | `add` − `concat` | -0.0039 | 0.0193 | -0.45 | `concat` 3/5 |
-| C1  flat bed | `add` − `bilinear` | +0.0036 | 0.0086 | +0.95 | `bilinear` 4/5 |
-| C1  flat bed | `concat` − `bilinear` | +0.0075 | 0.0180 | +0.94 | `bilinear` 3/5 |
-| C2  bump 0.2 m | `add` − `concat` | -0.0005 | 0.0092 | -0.12 | `concat` 2/5 |
-| C2  bump 0.2 m | `add` − `bilinear` | +0.0080 | 0.0220 | +0.81 | `bilinear` 3/5 |
-| C2  bump 0.2 m | `concat` − `bilinear` | +0.0085 | 0.0214 | +0.89 | `bilinear` 3/5 |
-| C2b bump 0.5 m (NEW) | `add` − `concat` | +0.0177 | 0.0515 | +0.77 | `concat` 3/5 |
-| C2b bump 0.5 m (NEW) | `add` − `bilinear` | +0.0193 | 0.0562 | +0.77 | `bilinear` 2/5 |
-| C2b bump 0.5 m (NEW) | `concat` − `bilinear` | +0.0017 | 0.0182 | +0.20 | `bilinear` 3/5 |
+| C1  flat bed | `add` − `concat` | -0.0077 | 0.0095 | -1.81 | `concat` 1/5 |
+| C1  flat bed | `add` − `bilinear` | -0.0067 | 0.0091 | -1.63 | `bilinear` 1/5 |
+| C1  flat bed | `concat` − `bilinear` | +0.0010 | 0.0135 | +0.17 | `bilinear` 2/5 |
+| C2  bump 0.2 m | `add` − `concat` | -0.0065 | 0.0184 | -0.79 | `concat` 2/5 |
+| C2  bump 0.2 m | `add` − `bilinear` | -0.0146 | 0.0189 | -1.73 | `bilinear` 1/5 |
+| C2  bump 0.2 m | `concat` − `bilinear` | -0.0081 | 0.0183 | -0.99 | `bilinear` 1/5 |
+| C2b bump 0.5 m (NEW) | `add` − `concat` | +0.0105 | 0.0327 | +0.72 | `concat` 4/5 |
+| C2b bump 0.5 m (NEW) | `add` − `bilinear` | -0.0052 | 0.0458 | -0.26 | `bilinear` 2/5 |
+| C2b bump 0.5 m (NEW) | `concat` − `bilinear` | -0.0158 | 0.0229 | -1.54 | `bilinear` 2/5 |
 
 And the primary statistic — **difference in differences** against the flat-bed control.
 A contrast being larger on a bumpy case only supports the separability argument if the
@@ -279,12 +280,12 @@ across-the-board advantage one fusion has over another.
 
 | case | contrast | DiD | std | t | p < 0.05? |
 |---|---|---|---|---|---|
-| C2  bump 0.2 m | `add` − `concat` | +0.0034 | 0.0156 | +0.49 | no |
-| C2  bump 0.2 m | `add` − `bilinear` | +0.0044 | 0.0189 | +0.52 | no |
-| C2  bump 0.2 m | `concat` − `bilinear` | +0.0010 | 0.0042 | +0.51 | no |
-| C2b bump 0.5 m (NEW) | `add` − `concat` | +0.0216 | 0.0670 | +0.72 | no |
-| C2b bump 0.5 m (NEW) | `add` − `bilinear` | +0.0157 | 0.0547 | +0.64 | no |
-| C2b bump 0.5 m (NEW) | `concat` − `bilinear` | -0.0059 | 0.0240 | -0.55 | no |
+| C2  bump 0.2 m | `add` − `concat` | +0.0012 | 0.0168 | +0.15 | no |
+| C2  bump 0.2 m | `add` − `bilinear` | -0.0080 | 0.0166 | -1.07 | no |
+| C2  bump 0.2 m | `concat` − `bilinear` | -0.0091 | 0.0076 | -2.70 | no |
+| C2b bump 0.5 m (NEW) | `add` − `concat` | +0.0182 | 0.0351 | +1.16 | no |
+| C2b bump 0.5 m (NEW) | `add` − `bilinear` | +0.0014 | 0.0492 | +0.07 | no |
+| C2b bump 0.5 m (NEW) | `concat` − `bilinear` | -0.0168 | 0.0228 | -1.65 | no |
 
 n = 5 seeds, df = 4, two-sided t critical = 2.78.
 
@@ -296,8 +297,8 @@ opposite sign to the prediction — and the largest is 1.5 standard errors from 
 An earlier three-seed run put `add` − `concat` on C2b at +0.0219 (t = 3.62, `concat`
 ahead in 3/3), which looked like the predicted effect. It does not survive:
 
-- five seeds, this run: **+0.0177 ± 0.0515, t = +0.77**
-- the first three seeds of *this* run: -0.0030 ± 0.0343, t = -0.15
+- five seeds, this run: **+0.0105 ± 0.0327, t = +0.72**
+- the first three seeds of *this* run: -0.0030 ± 0.0233, t = -0.22
 
 So it was not merely underpowered — the earlier estimate does not reproduce even at the
 same seed count. Treat it as run-specific noise.
@@ -314,9 +315,9 @@ null honestly, or drop the ablation and let the separability argument stand alon
 
 | batch | solver serial [ms] | solver batched [ms] | operator [ms] | vs serial | vs batched |
 |---|---|---|---|---|---|
-| 1 | 548.7 | 554.6 | 19.8411 | 28× | 28× |
-| 10 | 544.6 | 111.4 | 1.9707 | 276× | 57× |
-| 100 | 547.8 | 78.8 | 0.2226 | 2461× | 354× |
+| 1 | 436.1 | 489.4 | 20.1074 | 22× | 24× |
+| 10 | 469.7 | 98.7 | 1.8269 | 257× | 54× |
+| 100 | 464.4 | 72.1 | 0.2022 | 2297× | 356× |
 
 All times per trajectory. The solver leg is single-threaded NumPy. The manuscript's
 original comparison timed a solver at 13× more timesteps than it needed against a
@@ -336,43 +337,46 @@ over-diffused Lax-Friedrichs ones.
 
 | case | IC | ε_h (total) | ε_h (anomaly) | RMSE_h [m] | ε_hu |
 |---|---|---|---|---|---|
-| C1  smooth IC, flat bed | `paper` | **0.0262 ± 0.0025** | 0.3511 ± 0.0332 | 0.0279 ± 0.0026 | 0.1766 ± 0.0002 |
-| C2  smooth IC, bump bed | `paper` | **0.0334 ± 0.0045** | 0.2365 ± 0.0321 | 0.0359 ± 0.0049 | 0.1758 ± 0.0199 |
-| C3  dam break (OOD) | `paper` | **0.1559 ± 0.0163** | 0.7209 ± 0.0755 | 0.2396 ± 0.0251 | 0.4916 ± 0.0231 |
-| C4  100 unseen (mean) | `paper` | **0.0303 ± 0.0014** | 0.4158 ± 0.0205 | 0.0255 ± 0.0010 | 0.1808 ± 0.0053 |
-| C1  smooth IC, flat bed | `shifted` | **0.0246 ± 0.0031** | 0.3303 ± 0.0413 | 0.0262 ± 0.0033 | 0.1885 ± 0.0068 |
-| C2  smooth IC, bump bed | `shifted` | **0.0296 ± 0.0014** | 0.2095 ± 0.0102 | 0.0318 ± 0.0015 | 0.1720 ± 0.0075 |
-| C3  dam break (OOD) | `shifted` | **0.1643 ± 0.0130** | 0.7593 ± 0.0600 | 0.2524 ± 0.0199 | 0.4781 ± 0.0986 |
-| C4  100 unseen (mean) | `shifted` | **0.0311 ± 0.0008** | 0.4332 ± 0.0123 | 0.0260 ± 0.0005 | 0.1747 ± 0.0018 |
-| C1  smooth IC, flat bed | `exp` | **0.0247 ± 0.0036** | 0.3306 ± 0.0486 | 0.0263 ± 0.0039 | 0.1854 ± 0.0132 |
-| C2  smooth IC, bump bed | `exp` | **0.0335 ± 0.0052** | 0.2372 ± 0.0370 | 0.0360 ± 0.0056 | 0.1692 ± 0.0153 |
-| C3  dam break (OOD) | `exp` | **0.1995 ± 0.0201** | 0.9222 ± 0.0931 | 0.3065 ± 0.0309 | 0.5073 ± 0.1219 |
-| C4  100 unseen (mean) | `exp` | **0.0657 ± 0.0063** | 0.8410 ± 0.0763 | 0.0494 ± 0.0036 | 0.1802 ± 0.0051 |
-| C1  smooth IC, flat bed | `elu_scaled` | **0.0238 ± 0.0015** | 0.3194 ± 0.0202 | 0.0254 ± 0.0016 | 0.1757 ± 0.0059 |
-| C2  smooth IC, bump bed | `elu_scaled` | **0.0299 ± 0.0035** | 0.2117 ± 0.0248 | 0.0321 ± 0.0038 | 0.1633 ± 0.0163 |
-| C3  dam break (OOD) | `elu_scaled` | **0.1865 ± 0.0431** | 0.8622 ± 0.1993 | 0.2865 ± 0.0662 | 0.5252 ± 0.0529 |
-| C4  100 unseen (mean) | `elu_scaled` | **0.0745 ± 0.0036** | 0.9391 ± 0.0546 | 0.0551 ± 0.0025 | 0.1856 ± 0.0067 |
+| C1  smooth IC, flat bed | `paper` | **0.0258 ± 0.0038** | 0.3454 ± 0.0513 | 0.0275 ± 0.0041 | 0.1877 ± 0.0070 |
+| C2  smooth IC, bump bed | `paper` | **0.0329 ± 0.0052** | 0.2324 ± 0.0368 | 0.0353 ± 0.0056 | 0.1659 ± 0.0066 |
+| C3  dam break (OOD) | `paper` | **0.1669 ± 0.0112** | 0.7714 ± 0.0516 | 0.2564 ± 0.0171 | 0.5042 ± 0.0310 |
+| C4  100 unseen (mean) | `paper` | **0.0309 ± 0.0007** | 0.4263 ± 0.0085 | 0.0260 ± 0.0004 | 0.1752 ± 0.0059 |
+| C1  smooth IC, flat bed | `shifted` | **0.0255 ± 0.0032** | 0.3422 ± 0.0436 | 0.0272 ± 0.0035 | 0.1766 ± 0.0066 |
+| C2  smooth IC, bump bed | `shifted` | **0.0323 ± 0.0012** | 0.2283 ± 0.0082 | 0.0347 ± 0.0012 | 0.1688 ± 0.0120 |
+| C3  dam break (OOD) | `shifted` | **0.1704 ± 0.0153** | 0.7877 ± 0.0705 | 0.2618 ± 0.0234 | 0.5178 ± 0.0141 |
+| C4  100 unseen (mean) | `shifted` | **0.0307 ± 0.0007** | 0.4217 ± 0.0065 | 0.0258 ± 0.0002 | 0.1806 ± 0.0059 |
+| C1  smooth IC, flat bed | `exp` | **0.0253 ± 0.0004** | 0.3391 ± 0.0056 | 0.0269 ± 0.0004 | 0.1823 ± 0.0025 |
+| C2  smooth IC, bump bed | `exp` | **0.0336 ± 0.0017** | 0.2375 ± 0.0121 | 0.0360 ± 0.0018 | 0.1635 ± 0.0094 |
+| C3  dam break (OOD) | `exp` | **0.2141 ± 0.0204** | 0.9898 ± 0.0945 | 0.3290 ± 0.0314 | 0.5095 ± 0.1312 |
+| C4  100 unseen (mean) | `exp` | **0.0740 ± 0.0037** | 0.9350 ± 0.0400 | 0.0542 ± 0.0021 | 0.1765 ± 0.0085 |
+| C1  smooth IC, flat bed | `elu_scaled` | **0.0230 ± 0.0014** | 0.3089 ± 0.0190 | 0.0245 ± 0.0015 | 0.1892 ± 0.0098 |
+| C2  smooth IC, bump bed | `elu_scaled` | **0.0300 ± 0.0019** | 0.2119 ± 0.0134 | 0.0322 ± 0.0020 | 0.1696 ± 0.0110 |
+| C3  dam break (OOD) | `elu_scaled` | **0.1896 ± 0.0258** | 0.8764 ± 0.1190 | 0.2913 ± 0.0396 | 0.4913 ± 0.0444 |
+| C4  100 unseen (mean) | `elu_scaled` | **0.0757 ± 0.0033** | 0.9663 ± 0.0566 | 0.0556 ± 0.0021 | 0.1761 ± 0.0065 |
 
-- Against the manuscript's ε_h = 1.17e-2, C1 is **0.0262** — 2.2× higher
+- Against the manuscript's ε_h = 1.17e-2, C1 is **0.0258** — 2.2× higher
   once the reference is converged rather than diffused. Part of the original figure was
   the operator matching a smeared target.
 - ε_hu(anomaly) equals ε_hu(total) by construction — the rest state for hu is zero, so
   there is no background to subtract. Report one column.
 
-### The IC shortcut fix is not free, and not for the reason expected
+### Fixing the IC shortcut is free — but only one of the four ways
 
 | ic_mode | C1 | C2 | C4 (100 unseen) | C4 vs `paper` |
 |---|---|---|---|---|
-| `paper` | 0.0262 | 0.0334 | **0.0303 ± 0.0014** | 1.00× |
-| `shifted` | 0.0246 | 0.0296 | **0.0311 ± 0.0008** | 1.03× |
-| `exp` | 0.0247 | 0.0335 | **0.0657 ± 0.0063** | 2.17× |
-| `elu_scaled` | 0.0238 | 0.0299 | **0.0745 ± 0.0036** | 2.46× |
+| `paper` | 0.0258 | 0.0329 | **0.0309 ± 0.0007** | 1.00× |
+| `shifted` | 0.0255 | 0.0323 | **0.0307 ± 0.0007** | 0.99× |
+| `exp` | 0.0253 | 0.0336 | **0.0740 ± 0.0037** | 2.39× |
+| `elu_scaled` | 0.0230 | 0.0300 | **0.0757 ± 0.0033** | 2.45× |
 
-`elu_scaled` was added to test a specific hypothesis: that `exp`'s 2.3× penalty on unseen
+Two of the three replacements cost 2.4× on unseen pairs and one costs nothing. The
+split is not where it was expected.
+
+`elu_scaled` was added to test a specific hypothesis: that `exp`'s penalty on unseen
 pairs comes from exponential amplification of the correction field. It is exact at t = 0
 and floored exactly as `exp` is, but grows *linearly* in F. **The hypothesis is wrong** —
-`elu_scaled` costs 2.46×,
-marginally worse than `exp`'s 2.17×.
+`elu_scaled` costs 2.45×,
+marginally worse than `exp`'s 2.39×.
 
 What `exp` and `elu_scaled` share is the **multiplicative** form
 `b + h_min + (h₀ − b − h_min)·s(tF)`, where the correction's authority scales with the
@@ -384,10 +388,11 @@ Note the split: on C1 and C2 both floored variants are **slightly better** than 
 The penalty is specific to operator generalisation across unseen (h₀, b) pairs.
 
 **`shifted` is free — this is now measured, not argued.** It was trained at the full 40k
-budget for the first time in this run and lands at 0.0311 on C4
-against `paper`'s 0.0303 — a ratio of
-1.03×, well inside the seed
-spread — while being slightly *better* on C1 and C2.
+budget for the first time in this run and lands at 0.0307 on C4
+against `paper`'s 0.0309 — a ratio of
+0.99×, well inside the seed
+spread. Three independent runs now put this ratio at 1.03, 1.03 and 0.99 — the fix is
+free, and that is measured rather than argued.
 
 That also confirms the diagnosis. `shifted` keeps Eq. (12)'s additive form and pays
 nothing; `exp` and `elu_scaled` switch to the multiplicative form and pay 2.2–2.5×. The
@@ -410,14 +415,14 @@ Physics-only training on C2, 3000 steps per cell:
 
 | residual | ic_mode | BC | L_PDE | d(h₀) | d(lake) | gap | verdict |
 |---|---|---|---|---|---|---|---|
-| `time_only` | `paper` | on | 1.628e-06 | 0.0045 | 4.3553 | 0.999 | **h0** |
-| `time_only` | `paper` | off | 1.607e-07 | 0.0024 | 4.3551 | 0.999 | **h0** |
-| `time_only` | `exp` | on | 1.651e-08 | 0.0029 | 4.3552 | 0.999 | **h0** |
-| `time_only` | `exp` | off | 1.262e-08 | 0.0013 | 4.3548 | 1.000 | **h0** |
-| `full` | `paper` | on | 1.133e+00 | 13.5338 | 11.8342 | 0.126 | **neither** |
-| `full` | `paper` | off | 3.816e-01 | 4.6712 | 1.1518 | 0.753 | **lake** |
-| `full` | `exp` | on | 5.385e-01 | 5.6705 | 1.7716 | 0.688 | **lake** |
-| `full` | `exp` | off | 2.420e-01 | 6.3410 | 2.5505 | 0.598 | **lake** |
+| `time_only` | `paper` | on | 7.310e-10 | 0.0023 | 4.3557 | 0.999 | **h0** |
+| `time_only` | `paper` | off | 5.171e-09 | 0.0020 | 4.3557 | 1.000 | **h0** |
+| `time_only` | `exp` | on | 5.048e-10 | 0.0001 | 4.3557 | 1.000 | **h0** |
+| `time_only` | `exp` | off | 6.164e-09 | 0.0012 | 4.3548 | 1.000 | **h0** |
+| `full` | `paper` | on | 7.185e-01 | 7.7916 | 4.9985 | 0.358 | **lake** |
+| `full` | `paper` | off | 3.337e+00 | 9.3133 | 6.4954 | 0.303 | **lake** |
+| `full` | `exp` | on | 4.115e-01 | 6.0958 | 2.9618 | 0.514 | **lake** |
+| `full` | `exp` | off | 1.628e-01 | 6.1420 | 2.3220 | 0.622 | **lake** |
 
 **All four `time_only` cells land on h₀** to four decimal places, with L_PDE ~1e-9.
 **No `full` cell reaches h₀**; three go to the lake state and the fourth — the one with
@@ -461,16 +466,16 @@ error measured against the well-balanced reference instead of against h₀.
 
 | residual | ε_h | F0-gap [m] | final L_PDE |
 |---|---|---|---|
-| R₂ = ∂ₜ(hu) (v6) | 1.689e-01 | 0.0001 | 7.107e-09 |
-| full momentum | 1.167e-01 | 0.1054 | 6.311e-01 |
-| data-guided 40k (reference) | 2.618e-02 | — | — |
+| R₂ = ∂ₜ(hu) (v6) | 1.689e-01 | 0.0001 | 3.636e-09 |
+| full momentum | 8.959e-02 | 0.0741 | 5.770e-01 |
+| data-guided 40k (reference) | 2.576e-02 | — | — |
 
 Physics-only training fails under **both** residuals — ε_h ≈ 0.20 against 0.026
-for the data-guided model, roughly 6× worse. That much of the original Fig. 6 survives.
+for the data-guided model, roughly 7× worse. That much of the original Fig. 6 survives.
 
 What changes is the mechanism. The truncated residual pulls toward h₀ — its F0-gap is
-0.000 against 0.105 for the full one, and its
-residual settles at 7.1e-09 against 6.3e-01 — because
+0.000 against 0.074 for the full one, and its
+residual settles at 3.6e-09 against 5.8e-01 — because
 F = 0 *is* its minimum. The full residual has no such attractor and simply fails to
 converge. Caption Fig. 6 as "physics-only training fails", not as "the model collapses
 to the F = 0 state": the collapse is a property of the truncated residual.
@@ -485,23 +490,23 @@ each IC mode:
 
 | t [s] | 0.05 | 0.21 | 0.37 | 0.53 | 0.68 | 0.84 | 1.00 |
 |---|---|---|---|---|---|---|---|
-| `paper` | 0.018 | 0.041 | 0.036 | 0.020 | 0.032 | 0.040 | 0.027 |
-| `shifted` | 0.012 | 0.045 | 0.033 | 0.020 | 0.031 | 0.034 | 0.028 |
-| `exp` | 0.009 | 0.046 | 0.039 | 0.021 | 0.031 | 0.029 | 0.029 |
-| `elu_scaled` | 0.012 | 0.040 | 0.031 | 0.022 | 0.029 | 0.031 | 0.023 |
+| `paper` | 0.014 | 0.041 | 0.036 | 0.025 | 0.031 | 0.031 | 0.030 |
+| `shifted` | 0.012 | 0.044 | 0.034 | 0.027 | 0.034 | 0.032 | 0.025 |
+| `exp` | 0.015 | 0.041 | 0.036 | 0.021 | 0.028 | 0.030 | 0.026 |
+| `elu_scaled` | 0.010 | 0.046 | 0.034 | 0.026 | 0.031 | 0.032 | 0.024 |
 
-Mean ε_h before t = 0.7 is **0.0315**; after t = 0.85 it is
-**0.0376** — a ratio of only 1.19.
+Mean ε_h before t = 0.7 is **0.0313**; after t = 0.85 it is
+**0.0339** — a ratio of only 1.08.
 
-**This does not support the proposed reframing.** The error wanders between 0.02 and
-0.05 throughout, with a peak near t ≈ 0.25 — well before any shock — comparable to the
-late-time peak. Shock formation leaves no signature in the L2 error.
+**Read this together with §4.9, which does support the reframing.** The error wanders
+between 0.02 and 0.05 throughout, with a peak near t ≈ 0.25 — well before any shock —
+comparable to the late-time peak. Shock formation leaves **no signature in the total L2
+error**.
 
-The shock itself is not in doubt: §1.4's gradient doubling is unambiguous. What fails is
-the inference that the t = 1 s oscillations are *caused* by it. A discontinuity need not
-dominate an L2 norm, so this is not proof of the opposite either — but the claim needs a
-localised or spectral diagnostic (pointwise error near the shock, or high-wavenumber
-content), not this one. As it stands, do not assert the Gibbs attribution.
+That turned out to be the wrong statistic rather than a negative result: a discontinuity
+occupying a few percent of the domain need not move an L2 norm at all. §4.9 asks where
+the error sits instead, and finds it. Quote §4.9, not this section, and use this one only
+to explain why the aggregate error is uninformative here.
 
 ### 4.6 Table 4 rows A1 / A2 / A3 at a common budget
 
@@ -510,21 +515,31 @@ mean ± std over seeds [0, 1, 2].
 
 | variant | ε_h | ε_hu | F0-gap [m] | collapsed? |
 |---|---|---|---|---|
-| A1 shared branch | **0.0699 ± 0.0106** | 0.3086 ± 0.0439 | 0.1418 | no |
-| A2 no ic shortcut | **0.0684 ± 0.0056** | 0.3941 ± 0.0112 | 0.1159 | no |
-| A3 full model | **0.0942 ± 0.0280** | 0.2964 ± 0.0187 | 0.1364 | no |
+| A1 shared branch | **0.0609 ± 0.0029** | 0.3425 ± 0.0246 | 0.1358 | no |
+| A2 no ic shortcut | **0.0674 ± 0.0132** | 0.3845 ± 0.0220 | 0.1322 | no |
+| A3 full model | **0.0843 ± 0.0262** | 0.3294 ± 0.0348 | 0.1419 | no |
+| A1 shared branch | **0.0239 ± 0.0010** | 0.1912 ± 0.0096 | 0.1263 | no |
+| A2 no ic shortcut | **0.0416 ± 0.0090** | 0.2651 ± 0.0200 | 0.1281 | no |
+| A3 full model | **0.0255 ± 0.0028** | 0.1845 ± 0.0013 | 0.1306 | no |
 
-**The published ablation does not reproduce.** Neither A1 (shared branch) nor A2 (no IC
-shortcut) collapses, and at matched budget the full model A3 is the *worst* of the
-three. v6 reported A1 collapsing through coupled BC failure; on well-balanced targets it
-simply trains.
+**Half the ablation survives, and the surviving half is the interesting one.**
 
-Two caveats before this is used against the architecture. All three are far from
-converged at 10k steps — the same model reaches 0.026 at 40k — so this compares early
-training, not final quality. And A3's spread is the largest of the three, so its
-last-place finish is within noise of the other two. The defensible statement is that
-**at a matched budget the architectural choices are not what separates the variants**,
-which is weaker than the manuscript's claim and contradicts the collapse narrative.
+At the short budget nothing separates cleanly and the full model is nominally worst.
+At 40,000 steps the picture resolves:
+
+- **A2, no IC shortcut: 0.0416 against A3's 0.0255** — the analytic shortcut is worth
+  a factor of 1.63, with non-overlapping error bars. This ablation is real and
+  it is the one worth keeping.
+- **A1, shared branch: 0.0239** — indistinguishable from the full model, and nominally
+  ahead of it. Separate branch pairs buy nothing measurable.
+
+Neither variant collapses at either budget, so v6's coupled-BC-collapse narrative for A1
+does not reproduce on well-balanced data — that failure mode appears to have been a
+property of the over-diffused targets, not of the architecture.
+
+Caveat: the long budget uses 2 seeds. A2-vs-A3 is a 63% gap
+and safe at that sample size; A1-vs-A3 is a 6% gap and is not, so read A1 as "no
+detectable difference" rather than "better".
 
 ### 4.7 Error versus supervised sample count
 
@@ -533,14 +548,14 @@ pairs, 15,000 steps per run, mean ± std over seeds [0, 1, 2].
 
 | N_d | ε_h | ε_hu |
 |---|---|---|
-| 10 | **0.1967 ± 0.0024** | 1.0500 ± 0.0309 |
-| 25 | **0.0722 ± 0.0027** | 0.4106 ± 0.0062 |
-| 50 | **0.0426 ± 0.0010** | 0.2929 ± 0.0183 |
-| 100 | **0.0335 ± 0.0021** | 0.2051 ± 0.0147 |
-| 152 | **0.0317 ± 0.0003** | 0.1746 ± 0.0043 |
+| 10 | **0.1979 ± 0.0070** | 1.0673 ± 0.0160 |
+| 25 | **0.0747 ± 0.0032** | 0.4325 ± 0.0053 |
+| 50 | **0.0417 ± 0.0013** | 0.2753 ± 0.0261 |
+| 100 | **0.0334 ± 0.0012** | 0.1897 ± 0.0077 |
+| 152 | **0.0335 ± 0.0028** | 0.1668 ± 0.0033 |
 
-A clean, tight curve: 0.197 at N_d = 10 falling to
-0.0317 at N_d = 152, with the error bars small enough
+A clean, tight curve: 0.198 at N_d = 10 falling to
+0.0335 at N_d = 152, with the error bars small enough
 to read the shape. Returns saturate: going from 100 to 152 trajectories buys about 5%,
 against a factor of 2.7 between 10 and 25.
 
@@ -548,6 +563,77 @@ This is one of the few figures that comes out *better* than the published versio
 it is worth saying why — the previous curve was measured against targets that were
 themselves ~84% wrong on the wave anomaly (§1.5), so its shape carried the reference
 error as much as the operator's.
+
+---
+
+### 4.8 Where the t = 1 s error sits — the Gibbs claim, supported
+
+Window ±0.5 m around the reference shock (10% of the domain), high
+wavenumbers from k ≥ 10. `concentration` is the share of squared error inside
+the window over the window's share of the domain: 1 is uniform, 10 is the ceiling.
+
+| t [s] | ic_mode | x_shock | concentration | error in window | high-k share |
+|---|---|---|---|---|---|
+| 0.5 | `paper` | 2.56 | **1.85** | 0.190 | **0.110** |
+| 0.5 | `shifted` | 2.56 | **1.79** | 0.183 | **0.090** |
+| 0.5 | `exp` | 2.56 | **1.27** | 0.131 | **0.118** |
+| 0.5 | `elu_scaled` | 2.56 | **1.83** | 0.187 | **0.111** |
+| 1.0 | `paper` | 0.69 | **3.31** | 0.339 | **0.365** |
+| 1.0 | `shifted` | 0.69 | **2.61** | 0.268 | **0.555** |
+| 1.0 | `exp` | 0.69 | **3.54** | 0.362 | **0.474** |
+| 1.0 | `elu_scaled` | 0.69 | **2.50** | 0.257 | **0.479** |
+
+Between the smooth time and the shocked time, averaged over the four IC modes:
+
+- concentration **1.69 → 2.99**
+- high-wavenumber share of error power **0.107 → 0.468**
+
+Both move the way Gibbs ringing predicts and neither is marginal: after the shock about
+**a third of all squared error sits in a tenth of the domain**, and **nearly half the
+error power is above k = 10** against a ninth of it beforehand. The pattern holds for
+every IC mode, so it is a property of the solution being approximated rather than of one
+shortcut.
+
+This is the evidence §4.5 could not provide, and it rehabilitates the reframing: the
+t = 1 s oscillations are ringing at a genuine discontinuity, not the trunk running out
+of spectral resolution. Note that finite trunk resolution would raise the high-k share
+at *both* times and spread the error over the domain; neither happens.
+
+### 4.9 Query-resolution independence
+
+Sensors held at the analytic profile, so only the query grid varies. Reference computed
+once at nx = 3200 and interpolated down.
+
+| query nx | 50 | 100 | 200 | 400 | 800 | 1600 |
+|---|---|---|---|---|---|---|
+| ε_h | 0.0332 | 0.0327 | 0.0317 | 0.0326 | 0.0325 | 0.0325 |
+
+Spread across a 32× range of grids: **4.5%**. The operator is genuinely
+resolution-free — the reported ε_h is not an artefact of evaluating on the 400-point
+grid the data happens to live on. A clean positive result, and one the paper asserts
+without measuring.
+
+### 4.10 Extrapolation past the training horizon
+
+Supervised on snapshots to t = 1 s; the shortcut carries t·F, so beyond that is pure
+extrapolation.
+
+| t [s] | 1.0 | 1.1 | 1.2 | 1.3 | 1.4 | 1.5 | growth |
+|---|---|---|---|---|---|---|---|
+| `paper` | 0.030 | 0.063 | 0.150 | 0.255 | 0.355 | 0.466 | 15.8× |
+| `shifted` | 0.025 | 0.060 | 0.128 | 0.204 | 0.272 | 0.346 | 13.9× |
+| `exp` | 0.026 | 0.048 | 0.110 | 0.178 | 0.221 | 0.250 | 9.8× |
+| `elu_scaled` | 0.024 | 0.053 | 0.111 | 0.173 | 0.213 | 0.265 | 10.9× |
+
+Error roughly **doubles by t = 1.1 and grows 10–16× by t = 1.5**. Useful extrapolation
+extends perhaps 10% past the supervised interval. Worth stating as a limitation with a
+number attached rather than leaving a reader to assume the surrogate is valid beyond
+where it was trained.
+
+A curiosity worth one sentence: the floored shortcuts degrade *more slowly* outside the
+horizon (`exp` 9.8×, `elu_scaled` 10.9×) than the additive ones (`paper` 15.8×,
+`shifted` 13.9×), the reverse of their in-distribution ranking. Whatever the floor costs
+inside the training window, it buys some stability outside it.
 
 ---
 
@@ -607,10 +693,10 @@ without a GPU.
 
 **§4.2, Table 2 — benchmarks**
 
-- Annotate C1/C2 as smooth until t ≈ 0.78 s, shock thereafter (§1.4 is solid).
-- **Do not** assert that the t = 1 s oscillations are Gibbs ringing at that shock:
-  ε_h(t) shows no step at 0.78 s (§4.5). Either drop the causal claim or support it
-  with a localised diagnostic.
+- Annotate C1/C2 as smooth until t ≈ 0.78 s, shock thereafter (§1.4).
+- **Do** reframe the t = 1 s oscillations as Gibbs ringing — §4.8 supports it, with
+  error concentration 1.7 → 3.0 and high-k share 0.11 → 0.47 across the shock. Quote
+  §4.8, not §4.5; the aggregate L2 error is blind to this and says nothing either way.
 - Delete "capturing over 98.8% of the spatial variance".
 
 **§3.5.1, Proposition 1, Remarks 2–3 — the attractor**
@@ -645,8 +731,10 @@ without a GPU.
   represents it fine. The correct statement is that separability binds the *branch*,
   while the IC shortcut is nonlinear in h₀ and b and supplies the coupling.
 - Report the fusion ablation as the null it is, or drop it.
-- Rows A1/A2/A3 (§4.6): the collapse narrative does not reproduce on well-balanced
-  data, and at a matched 10k budget A3 is not ahead. Rewrite or withdraw the table.
+- Rows A1/A2/A3 (§4.6): keep **A2**, drop **A1**. At 40k the IC shortcut is worth 1.6×
+  with non-overlapping bars; the shared branch is indistinguishable from the full model.
+  Neither variant collapses, so remove the coupled-BC-collapse narrative — it appears to
+  have been an artefact of the over-diffused targets.
 
 **§4.9, Table 5 — speedup**
 
@@ -662,17 +750,17 @@ without a GPU.
 
 ## Still open
 
-- **The Gibbs attribution needs a different diagnostic.** §4.5 rules out an L2 signature
-  at shock formation. Pointwise error in a window around the shock, or the high-
-  wavenumber content of the predicted profile, would settle it; both are evaluation-only
-  on the saved 40k weights.
-- **A1/A2 at 40k.** §4.6 compares at 10k, where nothing is converged. If Table 4 is to
-  survive, the three variants need comparing where the full model actually performs.
-- **Fusion at a coupling strength that bites.** §1.9 shows the interaction peaks near a
-  0.35–0.5 m bump at ~9.6% of the field and then flattens, so a bigger bump will not
-  help. If the ablation is to show anything, it needs a different lever — depth ratio,
-  or bathymetry with more spatial structure — not more amplitude.
+The experimental programme is complete. What remains is either a writing decision or a
+deliberate choice to leave a limitation stated rather than solved.
+
+- **A1 at more seeds.** The 40k comparison used two. A2-vs-A3 is a 63% gap and safe;
+  A1-vs-A3 is 6% and is not. If the paper wants to *claim* the shared branch is
+  equivalent rather than merely undistinguished, that needs 5 seeds (~40 min).
 - **Run-to-run determinism.** `DETERMINISTIC = True` with a trimmed config would make
-  Table 3's ± a true seed-to-seed spread. Worth it before the numbers go in an abstract.
-- **C3 is not a clean benchmark.** It is non-periodic and solved with a periodic solver,
-  as in v6. Either label it a stress test or give it a non-periodic reference.
+  Table 3's ± a true seed-to-seed spread. Only matters if those numbers go in an abstract.
+- **C3 is not a clean benchmark.** Non-periodic problem, periodic solver, inherited from
+  v6. Either label it a stress test or give it transmissive boundaries.
+- **Extrapolation and hu accuracy** are limitations to state, not to fix: ε_hu sits near
+  0.18 where ε_h is 0.026, and extrapolation is useful for about 10% past the horizon.
+  Both now have numbers (§4.10, Table 3); neither should be quietly omitted.
+
