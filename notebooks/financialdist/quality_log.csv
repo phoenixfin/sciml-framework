@@ -1,0 +1,25 @@
+repair_code,share_code,year,column,old_value,new_value,reason
+DUP_FIRM_BLOCK,PYFA,2020,(entire row),NO=5764,dropped,PYFA entered twice as two full 11-year blocks; kept NO 5737-5747. Governance values disagree in 5 firm-years - verify against annual reports.
+DUP_FIRM_BLOCK,PYFA,2022,(entire row),NO=5762,dropped,PYFA entered twice as two full 11-year blocks; kept NO 5737-5747. Governance values disagree in 5 firm-years - verify against annual reports.
+DUP_FIRM_BLOCK,PYFA,2017,(entire row),NO=5767,dropped,PYFA entered twice as two full 11-year blocks; kept NO 5737-5747. Governance values disagree in 5 firm-years - verify against annual reports.
+DUP_FIRM_BLOCK,PYFA,2019,(entire row),NO=5765,dropped,PYFA entered twice as two full 11-year blocks; kept NO 5737-5747. Governance values disagree in 5 firm-years - verify against annual reports.
+DUP_FIRM_BLOCK,PYFA,2018,(entire row),NO=5766,dropped,PYFA entered twice as two full 11-year blocks; kept NO 5737-5747. Governance values disagree in 5 firm-years - verify against annual reports.
+DUP_FIRM_BLOCK,PYFA,2015,(entire row),NO=5769,dropped,PYFA entered twice as two full 11-year blocks; kept NO 5737-5747. Governance values disagree in 5 firm-years - verify against annual reports.
+DUP_FIRM_BLOCK,PYFA,2016,(entire row),NO=5768,dropped,PYFA entered twice as two full 11-year blocks; kept NO 5737-5747. Governance values disagree in 5 firm-years - verify against annual reports.
+DUP_FIRM_BLOCK,PYFA,2013,(entire row),NO=5771,dropped,PYFA entered twice as two full 11-year blocks; kept NO 5737-5747. Governance values disagree in 5 firm-years - verify against annual reports.
+DUP_FIRM_BLOCK,PYFA,2014,(entire row),NO=5770,dropped,PYFA entered twice as two full 11-year blocks; kept NO 5737-5747. Governance values disagree in 5 firm-years - verify against annual reports.
+DUP_FIRM_BLOCK,PYFA,2021,(entire row),NO=5763,dropped,PYFA entered twice as two full 11-year blocks; kept NO 5737-5747. Governance values disagree in 5 firm-years - verify against annual reports.
+DUP_FIRM_BLOCK,PYFA,2023,(entire row),NO=5761,dropped,PYFA entered twice as two full 11-year blocks; kept NO 5737-5747. Governance values disagree in 5 firm-years - verify against annual reports.
+X15_DESYNC,(all firms),2013-2023,X15_corruption_index,2856 of 3564 rows mismatched,rebuilt from YEAR,CPI is a single national value per year but source had 6 distinct values per year. Value multiset matched the true series exactly -> row/column desynchronisation. Rebuilt from Transparency International.
+PROP_GT_1,GEMS,2018,X13_indep_commissioner,3.0,NaN,Proportion exceeds 1 - value looks like an undivided head count. Not recoverable from this file; recompute from the annual report.
+PROP_GT_1,ASRI,2021,X13_indep_commissioner,2.0,NaN,Proportion exceeds 1 - value looks like an undivided head count. Not recoverable from this file; recompute from the annual report.
+PROP_GT_1,DNET,2019,X13_indep_commissioner,2.5,NaN,Proportion exceeds 1 - value looks like an undivided head count. Not recoverable from this file; recompute from the annual report.
+PROP_GT_1,MBSS,2023,X14_board_diversity,1.1428571428571428,NaN,Proportion exceeds 1 - value looks like an undivided head count. Not recoverable from this file; recompute from the annual report.
+PROP_GT_1,LTLS,2019,X14_board_diversity,5.0,NaN,Proportion exceeds 1 - value looks like an undivided head count. Not recoverable from this file; recompute from the annual report.
+DIV_BY_ZERO,UNIC,2023,X13_indep_commissioner,#DIV/0!,NaN,"Zero denominator: total commissioners recorded as 0. Data-entry gap, recoverable from the annual report."
+DIV_BY_ZERO,LTLS,2021,X13_indep_commissioner,#DIV/0!,NaN,"Zero denominator: total commissioners recorded as 0. Data-entry gap, recoverable from the annual report."
+NEGATIVE_CASH,ARTI,2022,X5_cash_ratio,-0.04254384807188807,NaN,"Cash ratio is negative, which is impossible unless 'cash' is net of bank overdrafts. Nulled; interpolated in the SINDy file."
+NEGATIVE_CASH,ARTI,2023,X5_cash_ratio,-0.0014966496940251714,NaN,"Cash ratio is negative, which is impossible unless 'cash' is net of bank overdrafts. Nulled; interpolated in the SINDy file."
+NEGATIVE_CASH,ARTI,2020,X5_cash_ratio,-0.22574249041669311,NaN,"Cash ratio is negative, which is impossible unless 'cash' is net of bank overdrafts. Nulled; interpolated in the SINDy file."
+NEGATIVE_CASH,ARTI,2021,X5_cash_ratio,-0.20548483105546206,NaN,"Cash ratio is negative, which is impossible unless 'cash' is net of bank overdrafts. Nulled; interpolated in the SINDy file."
+ZERO_LIABILITY,LPLI,2021,IEQ_equity_to_liability,X9 = 0,NaN,"X9 = TL/E = 0 means zero total liabilities, so E/TL is undefined (debt-free firm). Interpolated in the SINDy file."
