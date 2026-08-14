@@ -84,6 +84,8 @@ src/sciml/
 
 configs/       swe.yaml · wave_obstacle.yaml · dengue.yaml (+ JSON)
 experiments/   swe/{train,evaluate,ablation,nd_scaling,physics_attractor} · wave_obstacle · epidemiology
+notebooks/     pi_deeponet_swe/ — audit of the SWE study: well-balanced solvers,
+               a port of the source pipeline, RESULTS.md, build_report.py
 examples/      01–13 graded gallery
 tests/         numpy tests (always run) + TF-guarded tests
 docs/          this documentation

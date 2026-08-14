@@ -27,6 +27,13 @@ package:
 - `pinn_string_obstacle_original_v4` → PINN for a **moving-boundary wave**
 - `dengue_beta_estimation` → SINDy for **dengue β(t) identification**
 
+The SWE notebook was later audited end to end — reference solver, theory,
+metrics, ablations — and several of its design claims did not survive. The
+findings are in
+[`notebooks/pi_deeponet_swe/RESULTS.md`](../notebooks/pi_deeponet_swe/RESULTS.md);
+read them before quoting anything from `problems/swe` or
+`experiments/swe/{ablation,nd_scaling,physics_attractor}`.
+
 FNO, Neural ODE and DMD were then added as peer engines, plus a 13-example
 gallery balanced across ODE and PDE problems.
 

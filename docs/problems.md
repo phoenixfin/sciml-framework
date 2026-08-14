@@ -15,14 +15,31 @@ bathymetry `b(x)` (sampled at M=100 sensors) to the depth/momentum fields
 `h(x,t), hu(x,t)`. Two design choices encode the physics:
 
 - **Analytical IC shortcut** — outputs are `t`-scaled corrections so
-  `h(x,0)=h₀`, `hu(x,0)=0` exactly, with positivity via ELU.
-- **Separate branch pairs** for `h` and `hu` — prevents a coupled
-  boundary-condition collapse.
+  `hu(x,0)=0` exactly and `h(x,0)=h₀` up to `ε`, with an ELU keeping the depth
+  away from zero.
+- **Separate branch pairs** for `h` and `hu`.
 
 Training combines a **data** loss (vs Lax–Friedrichs reference snapshots) with a
 periodic **boundary** loss. Ships evaluation cases C1–C3, an operator
 generalization test (C4), ablation variants, an N_d-scaling study, and an
 `F=0`-attractor physics experiment.
+
+> **Three of these descriptions were audited and revised.** See
+> [`notebooks/pi_deeponet_swe/RESULTS.md`](../notebooks/pi_deeponet_swe/RESULTS.md).
+>
+> - The ELU shortcut does **not** guarantee positivity: it is bounded below by
+>   `b + h_min + ε − 1`, and depth reaches **−0.95 m** under stress. Moving `ε`
+>   inside the ELU makes the IC exact at `t=0` at no measured accuracy cost.
+> - Separate branch pairs are **not** measurably better than a shared branch, and
+>   neither variant exhibits the boundary-condition collapse the design was meant
+>   to avoid. What *is* worth 1.6× at a matched budget is the IC shortcut itself.
+> - The `F=0` attractor is a property of the **residual as implemented** — its
+>   momentum term is `∂ₜ(hu)` alone, for which `F=0` is the exact global minimum.
+>   With the full momentum residual, physics-only training leaves for the
+>   lake-at-rest manifold instead.
+>
+> The Lax–Friedrichs targets also carry substantial error at the shipped settings
+> — see the reference-solver note below.
 
 ```bash
 sciml swe --config configs/swe.yaml --timing
@@ -89,7 +106,7 @@ examples:
 
 | Solver | Equation / system |
 |---|---|
-| `swe_lax_friedrichs` | 1D shallow water equations |
+| `swe_lax_friedrichs` | 1D shallow water equations — **see the accuracy note below** |
 | `wave_fdm` | moving-boundary wave (reference field) |
 | `compartmental` | SI/SIR/SIRS ODEs (RK4) + `rk4_integrate` |
 | `dynamical` | linear decay, harmonic, Lotka–Volterra, Lorenz, Van der Pol, FitzHugh–Nagumo |
@@ -99,3 +116,22 @@ examples:
 | `wave1d` | 1D wave d'Alembert reference |
 | `kuramoto_sivashinsky` | KS equation (ETDRK4) |
 | `darcy` | 2D Darcy flow (finite differences) |
+
+### Accuracy note — `swe_lax_friedrichs`
+
+At the settings the SWE example ships with (`nx=400`, `nt=4000`) the **measured
+CFL is 0.038**, not the ≈0.45 one might assume from the grid. Lax–Friedrichs
+viscosity is `ν = Δx²(1−CFL²)/(2Δt)`, so it *grows* as `Δt` shrinks at fixed
+`Δx`: a conservatively small timestep makes the scheme more diffusive, not less.
+
+Against a converged reference the resulting field is **6.4 × 10⁻²** relative —
+**84% of the wave anomaly** — and peak-to-peak amplitude is flattened from
+0.237 m to 0.071 m. Anything measured against these targets inherits that error.
+
+A well-balanced HLL solver (Audusse hydrostatic reconstruction, minmod-MUSCL,
+SSP-RK2) reaching **8.9 × 10⁻³** on the same grid, exact to machine precision on
+lake-at-rest, is in
+[`notebooks/pi_deeponet_swe/swe_solvers.py`](../notebooks/pi_deeponet_swe/swe_solvers.py).
+Prefer it whenever the reference error competes with the effect being measured.
+
+Full audit: [`notebooks/pi_deeponet_swe/RESULTS.md`](../notebooks/pi_deeponet_swe/RESULTS.md).

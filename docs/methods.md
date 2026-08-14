@@ -33,6 +33,16 @@ field = op([h0_sensors, b_sensors], query_xy)      # (B, N)
 functions into one operator). `Trainer` is the generic injected-step loop
 (see [architecture](architecture.md#training--the-generic-loop-deeponet)).
 
+> **Summing branches makes the coefficient map additively separable** in the
+> input functions: `β = B₁(a₁) + B₂(a₂)` cannot represent an `a₁`–`a₂`
+> interaction, though anything downstream that mixes them nonlinearly — an IC
+> shortcut, for instance — can. Whether that costs you is measurable *before*
+> training, from the reference solver alone, via the second mixed difference
+> `G(a₁,a₂) − G(a₁,0) − G(ā₁,a₂) + G(ā₁,0)`. See
+> [§1.9 of the SWE audit](../notebooks/pi_deeponet_swe/RESULTS.md#19-how-much-h₀b-interaction-is-there-to-find), where the
+> true interaction is 9.6% of the field yet concat/bilinear fusion still shows
+> no measurable advantage.
+
 **Examples.** `08_advection_diffusion_deeponet.py`; full study: `problems/swe`.
 
 ---
