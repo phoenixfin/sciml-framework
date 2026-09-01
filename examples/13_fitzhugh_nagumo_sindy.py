@@ -18,6 +18,8 @@ OUT = "outputs/examples"
 
 
 def main():
+    """Simulate the FitzHugh-Nagumo neuron, identify it, and plot the recovered
+    dynamics."""
     t = np.arange(0, 200, 0.05)
     X = simulate(fitzhugh_nagumo(), [-1.0, 1.0], t)
 

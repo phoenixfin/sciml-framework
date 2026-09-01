@@ -37,9 +37,26 @@ L = []
 w = L.append
 
 
-def ms(vals, prec=4):
+def ms(vals: object, prec: int = 4) -> str:
+    """Format a value, or a set of repeats, as ``mean`` or ``mean ± sd``.
+
+    Parameters
+    ----------
+    vals : object
+        One value, or several repeats of the same measurement.
+    prec : int
+        Decimal places.
+
+    Returns
+    -------
+    str
+        ``mean`` for a single value, ``mean ± sd`` (sample sd) for more —
+        so a single-seed number can never be mistaken for a spread.
+    """
     v = np.asarray(vals, float)
-    return f"{v.mean():.{prec}f}" if v.size == 1 else f"{v.mean():.{prec}f} ± {v.std(ddof=1):.{prec}f}"
+    if v.size == 1:
+        return f"{v.mean():.{prec}f}"
+    return f"{v.mean():.{prec}f} ± {v.std(ddof=1):.{prec}f}"
 
 
 # ----------------------------------------------------------------- header
@@ -54,12 +71,15 @@ w("| | |")
 w("|---|---|")
 w(f"| Notebook version | `{D['notebook_version']}` |")
 w(f"| Wall clock | {D['wall_clock_seconds'] / 60:.1f} min |")
-w(f"| TensorFlow | {tf_['version']}, {len(tf_['gpus'])} GPU(s), legacy Keras: {tf_['legacy_keras']} |")
+w(f"| TensorFlow | {tf_['version']}, {len(tf_['gpus'])} GPU(s),"
+  f" legacy Keras: {tf_['legacy_keras']} |")
 w(f"| Parts run | {', '.join(k for k, v in D['parts_run'].items() if v)} |")
-w(f"| Supervised trajectories | {cfg['N_SUP']} of {cfg['N_TRAIN']} sampled, nx = {cfg['NX_DATA']} |")
+w(f"| Supervised trajectories | {cfg['N_SUP']} of {cfg['N_TRAIN']} sampled,"
+  f" nx = {cfg['NX_DATA']} |")
 w(f"| Production budget | {cfg['ITER_40K']:,} steps × {len(cfg['IC_MODES_40K'])} IC modes"
   f" × {len(cfg['RUN40K_SEEDS'])} seeds |")
-w(f"| Ablation budget | {cfg['FUSION_STEPS']:,} steps × 3 fusions × {len(cfg['ABLATION_SEEDS'])} seeds |")
+w(f"| Ablation budget | {cfg['FUSION_STEPS']:,} steps × 3 fusions"
+  f" × {len(cfg['ABLATION_SEEDS'])} seeds |")
 w("")
 w("Part 2 was disabled in this run; its numbers are quoted from the run of the same day")
 w("that had it enabled (TF 2.20, P100) and are flagged where they appear. They are")
@@ -87,7 +107,8 @@ w(f"| **Reference error dominated the budget** | The training targets were"
   f" `{eb[0]['rel_l2']:.1e}` relative against a converged solution —"
   f" **{eb[0]['rel_l2_anomaly']:.0%} of the wave anomaly** — versus"
   f" `{eb[2]['rel_l2']:.1e}` for a well-balanced scheme on the same grid. Operator"
-  f" errors measured against them were flattered accordingly. ([§1.5](#15-error-budget-against-a-converged-reference)) |")
+  f" errors measured against them were flattered accordingly."
+  f" ([§1.5](#15-error-budget-against-a-converged-reference)) |")
 w(f"| **Benchmark C1 is not smooth** | It develops a shock at **t ≈ 0.78 s**:"
   f" `max` of the depth gradient doubles at every refinement"
   f" ({D['shock']['grad_vs_nx'][0][1]:.2f} → {D['shock']['grad_vs_nx'][-1][1]:.2f}"
@@ -106,7 +127,8 @@ w(f"| **The IC shortcut had two defects** | Off by ε at t=0, and its positivity
   f" ({_t3[('C4','shifted')].mean() / _t3[('C4','paper')].mean():.2f}× on unseen pairs);"
   f" multiplicative alternatives cost"
   f" **{_t3[('C4','elu_scaled')].mean() / _t3[('C4','paper')].mean():.1f}×**."
-  f" ([§2.5](#25-ic-shortcut-variants), [§4.1](#41-table-3-errors-against-the-well-balanced-reference)) |")
+  f" ([§2.5](#25-ic-shortcut-variants),"
+  f" [§4.1](#41-table-3-errors-against-the-well-balanced-reference)) |")
 w(f"| **The t=1 s oscillations are Gibbs ringing** | Across the shock, error"
   f" concentration rises `{_sl['conc_smooth']:.1f} → {_sl['conc_shocked']:.1f}` and the"
   f" high-wavenumber share of error power rises"
@@ -122,7 +144,8 @@ w(f"| **Half the architecture ablation survives** | At a matched 40k budget the 
 w(f"| **The operator is resolution-free** | ε_h varies by"
   f" **{D['resolution_independence']['rel_spread']:.1%}** across a 32× range of query"
   f" grids. Extrapolation past the training horizon is useful for about **10%** of it."
-  f" ([§4.9](#49-query-resolution-independence), [§4.10](#410-extrapolation-past-the-training-horizon)) |")
+  f" ([§4.9](#49-query-resolution-independence),"
+  f" [§4.10](#410-extrapolation-past-the-training-horizon)) |")
 w(f"| **Honest speedup** | **{_sp['speedup_vs_serial']:.0f}×** against a serial"
   f" reference solver, **{_sp['speedup_vs_batched']:.0f}×** against a vectorised one."
   f" ([§3.3](#33-table-5-like-for-like-speedup)) |")
@@ -190,7 +213,8 @@ w(f"| Δx | {ca['dx']:.4e} m |")
 w(f"| Δt | {ca['dt']:.4e} s |")
 w(f"| measured max CFL | **{ca['cfl_measured']:.4f}** (manuscript: 0.45) |")
 w(f"| numerical viscosity ν_LxF | **{ca['nu_lxf']:.4f}** m²/s |")
-w(f"| diffusion length √(4νT) | {math.sqrt(4 * ca['nu_lxf'] * 1.0):.3f} m (Gaussian half-width ≈ 0.7 m) |")
+w(f"| diffusion length √(4νT) | {math.sqrt(4 * ca['nu_lxf'] * 1.0):.3f} m"
+  f" (Gaussian half-width ≈ 0.7 m) |")
 w(f"| nt for CFL = 0.45 | {ca['nt_for_cfl_045']} |")
 w("")
 w("Lax-Friedrichs viscosity *grows* as Δt falls at fixed Δx, so the 13× excess in `nt` is")
@@ -384,7 +408,8 @@ w("")
 oc = D["operator_conservation"]
 w(f"- DeepONet relative mass drift at T: **{oc['operator_final_drift']:.3e}**")
 w(f"- Reference solver: {oc['reference_final_drift']:.3e}")
-w(f"- Operator total momentum at T on a flat bed: **{oc['operator_momentum'][-1]:+.3e}** (should be 0)")
+w(f"- Operator total momentum at T on a flat bed:"
+  f" **{oc['operator_momentum'][-1]:+.3e}** (should be 0)")
 w("")
 w("Percent-level mass violation is normal for a neural operator; reporting it is worth more")
 w("than the number itself.")
@@ -586,7 +611,8 @@ w("")
 w(f"- **Finite differences and autodiff agree to four significant figures**"
   f" ({g['FD, full momentum']:.4e} vs {g['autodiff, full momentum']:.4e}), so the FD")
 w("  approximation explains none of the published spread. Batch size explains none either.")
-w(f"- Fig. 6's 2.2e1 sits with the truncated-residual rows (~{g['FD, R2 = hu_t (v6 verbatim)']:.1e}).")
+w(f"- Fig. 6's 2.2e1 sits with the truncated-residual rows"
+  f" (~{g['FD, R2 = hu_t (v6 verbatim)']:.1e}).")
 w(f"- Remark 3's 1.5e2 sits with the full-momentum rows (~{g['FD, full momentum']:.1e}).")
 w("- §3.7.3's 6.6e12 is seven orders above the largest protocol constructible here")
 w(f"  ({g['FD, R2 = hu_t, SUM not MEAN']:.1e}, deliberately unreduced). Treat it as an error.")
@@ -611,7 +637,8 @@ w(f"| full momentum | {a0['full']['eps_h']:.3e} | {a0['full']['f0_gap']:.4f} |"
 w(f"| data-guided 40k (reference) | {a0['data_guided_40k_eps_h']:.3e} | — | — |")
 w("")
 r = a0["time_only"]["eps_h"] / a0["data_guided_40k_eps_h"]
-w(f"Physics-only training fails under **both** residuals — ε_h ≈ 0.20 against {a0['data_guided_40k_eps_h']:.3f}")
+w(f"Physics-only training fails under **both** residuals — ε_h ≈ 0.20"
+  f" against {a0['data_guided_40k_eps_h']:.3f}")
 w(f"for the data-guided model, roughly {r:.0f}× worse. That much of the original Fig. 6 survives.")
 w("")
 w("What changes is the mechanism. The truncated residual pulls toward h₀ — its F0-gap is")
@@ -729,7 +756,8 @@ w("")
 w("Between the smooth time and the shocked time, averaged over the four IC modes:")
 w("")
 w(f"- concentration **{sl['conc_smooth']:.2f} → {sl['conc_shocked']:.2f}**")
-w(f"- high-wavenumber share of error power **{sl['highk_smooth']:.3f} → {sl['highk_shocked']:.3f}**")
+w(f"- high-wavenumber share of error power"
+  f" **{sl['highk_smooth']:.3f} → {sl['highk_shocked']:.3f}**")
 w("")
 w("Both move the way Gibbs ringing predicts and neither is marginal: after the shock about")
 w("**a third of all squared error sits in a tenth of the domain**, and **nearly half the")
@@ -918,7 +946,23 @@ w("")
 # the repo README carries the same findings; derive them from L so the two
 # documents cannot drift, rewriting the in-page anchors to point at RESULTS.md
 # ----------------------------------------------------------------------
-def readme_block(lines):
+def readme_block(lines: list) -> list:
+    """Derive the README's ``swe-findings`` block from the RESULTS.md lines.
+
+    The headline table is lifted verbatim from ``lines`` (so the two documents
+    cannot drift) with its in-page anchors rewritten to point at RESULTS.md,
+    and the solver caveat is regenerated from the same results JSON.
+
+    Parameters
+    ----------
+    lines : list
+        The RESULTS.md body, as accumulated in ``L``.
+
+    Returns
+    -------
+    list
+        The lines to place between the README's BEGIN/END markers.
+    """
     rel = "notebooks/pi_deeponet_swe/RESULTS.md"
     i = lines.index("## Headline findings")
     j = next(k for k in range(i + 1, len(lines)) if lines[k].startswith("---"))

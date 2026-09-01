@@ -44,7 +44,24 @@ from .run import (
 
 
 def spectral_radius(spec: ModelSpec, dt: float) -> float:
-    """Max |eigenvalue| of the identified linear one-step map I + dt*A."""
+    """Spectral radius of the identified one-step map ``I + dt*A``.
+
+    Only the linear state-to-state terms enter ``A``; inputs and nonlinear
+    terms are ignored, so this is the local stability of the rollout map.
+
+    Parameters
+    ----------
+    spec : ModelSpec
+        A fitted spec whose model exposes ``feature_names_`` and ``coef_``.
+    dt : float
+        Sampling interval [h] the model was fitted at.
+
+    Returns
+    -------
+    float
+        Largest ``|eigenvalue|``. Above 1 the rollout grows without bound,
+        which is the mechanism behind the diverging state constructions.
+    """
     names = spec.model.feature_names_
     coef = spec.model.coef_
     d = len(spec.state_names)
@@ -57,6 +74,7 @@ def spectral_radius(spec: ModelSpec, dt: float) -> float:
 
 
 def main() -> None:
+    """Score the state constructions (A3) and report their stability."""
     ap = build_parser()
     ap.set_defaults(out="outputs/wnts_A3")
     args = ap.parse_args()

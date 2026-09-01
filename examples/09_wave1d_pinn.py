@@ -21,11 +21,24 @@ OUT = "outputs/examples"
 L, C, T = 1.0, 1.0, 0.5
 
 
-def f0_np(x):
+def f0_np(x: np.ndarray) -> np.ndarray:
+    """Initial displacement profile, in numpy.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Positions to evaluate at.
+
+    Returns
+    -------
+    np.ndarray
+        The initial displacement ``u(x, 0)``, same shape as ``x``.
+    """
     return np.exp(-((np.mod(x, L) - 0.5) ** 2) / (2 * 0.06 ** 2)).astype(np.float32)
 
 
 def main():
+    """Train a PINN on the 1D wave equation and compare it with d'Alembert's solution."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--steps", type=int, default=8000)
     args = ap.parse_args()

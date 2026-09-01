@@ -13,6 +13,7 @@ from sciml.problems.wave_obstacle.config import WaveObstacleConfig
 
 
 def main():
+    """Parse arguments, train the PINN, and print the two relative errors."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default=None)
     ap.add_argument("--out", default="outputs/wave_obstacle")

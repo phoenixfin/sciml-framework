@@ -19,6 +19,7 @@ OUT = "outputs/examples"
 
 
 def main():
+    """Build oscillator snapshots, fit DMD, and plot the recovered mode and spectrum."""
     omega_true = 2.0
     dt = 0.05
     t = np.arange(0, 12, dt)

@@ -5,17 +5,31 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from sciml.data.datasets import load
+from sciml.data.datasets import TimeSeriesData, load
 from sciml.data.datasets.synthetic import A_TRUE, B_TRUE
 from sciml.tasks import sysid
 
 
 @pytest.fixture(scope="module")
-def lti():
+def lti() -> TimeSeriesData:
+    """Four noisy LTI segments, shared by every test in this module.
+
+    Returns
+    -------
+    TimeSeriesData
+        The ``lti_demo`` dataset: 4 segments of 400 samples with light noise.
+    """
     return load("lti_demo", n_segments=4, seg_len=400, noise=0.005, seed=3)
 
 
-def test_sindyc_recovers_lti(lti):
+def test_sindyc_recovers_lti(lti: TimeSeriesData):
+    """SINDYc fits the LTI demo well and beats every trivial baseline at 72 h.
+
+    Parameters
+    ----------
+    lti : TimeSeriesData
+        The shared ``lti_demo`` fixture.
+    """
     res = sysid.run(lti, states=["x1", "x2"], inputs=["u1", "u2"], method="sindyc",
                     center="segment", horizons=(24, 72))
     # One-step fit should be excellent on nearly noise-free linear data.
@@ -25,7 +39,14 @@ def test_sindyc_recovers_lti(lti):
     assert hz[72]["nrmse"] < min(v[72] for v in res.baselines.values())
 
 
-def test_sindyc_coefficient_recovery(lti):
+def test_sindyc_coefficient_recovery(lti: TimeSeriesData):
+    """The identified coefficients match the true A and B mapped through the same scaling.
+
+    Parameters
+    ----------
+    lti : TimeSeriesData
+        The shared ``lti_demo`` fixture.
+    """
     res = sysid.run(lti, states=["x1", "x2"], inputs=["u1", "u2"], method="sindyc",
                     center="segment", horizons=(24,))
     # Compare identified linear coefficients (z-units) to the truth mapped
@@ -44,39 +65,81 @@ def test_sindyc_coefficient_recovery(lti):
                 assert got[nm] == pytest.approx(true_c, rel=0.35)
 
 
-def test_dmdc_matches_protocol(lti):
+def test_dmdc_matches_protocol(lti: TimeSeriesData):
+    """DMDc runs as a dense degree-1 fit and reaches a comparable R^2.
+
+    Parameters
+    ----------
+    lti : TimeSeriesData
+        The shared ``lti_demo`` fixture.
+    """
     res = sysid.run(lti, states=["x1", "x2"], inputs=["u1", "u2"], method="dmdc",
                     center="segment", horizons=(24,))
     assert res.details["threshold"] == 0.0 and res.details["degree"] == 1
     assert min(res.r2_test.values()) > 0.8
 
 
-def test_autonomous_sindy_runs(lti):
+def test_autonomous_sindy_runs(lti: TimeSeriesData):
+    """Autonomous SINDy runs with no inputs and still rolls out.
+
+    Parameters
+    ----------
+    lti : TimeSeriesData
+        The shared ``lti_demo`` fixture.
+    """
     res = sysid.run(lti, states=["x1", "x2"], method="sindy", center="segment",
                     horizons=(24,))
     assert res.inputs == []
     assert res.metrics["n_rollouts"] > 0
 
 
-def test_causal_centering_runs(lti):
+def test_causal_centering_runs(lti: TimeSeriesData):
+    """The causal trailing operating point produces finite forecast errors.
+
+    Parameters
+    ----------
+    lti : TimeSeriesData
+        The shared ``lti_demo`` fixture.
+    """
     res = sysid.run(lti, states=["x1", "x2"], inputs=["u1", "u2"], method="sindyc",
                     center="causal", op_window_h=48, horizons=(24,))
     assert np.isfinite(res.metrics["horizons"][24]["nrmse"])
 
 
-def test_explicit_test_data(lti):
+def test_explicit_test_data(lti: TimeSeriesData):
+    """An explicitly supplied test dataset replaces the internal split.
+
+    Parameters
+    ----------
+    lti : TimeSeriesData
+        The shared ``lti_demo`` fixture.
+    """
     other = load("lti_demo", n_segments=1, seg_len=300, noise=0.005, seed=99)
     res = sysid.run(lti, states=["x1", "x2"], inputs=["u1", "u2"], method="sindyc",
                     center="segment", test_data=other, horizons=(24,))
     assert res.details["n_test_segments"] == 1
 
 
-def test_unknown_method_raises(lti):
+def test_unknown_method_raises(lti: TimeSeriesData):
+    """An unknown method name raises rather than falling back.
+
+    Parameters
+    ----------
+    lti : TimeSeriesData
+        The shared ``lti_demo`` fixture.
+    """
     with pytest.raises(ValueError):
         sysid.run(lti, states=["x1"], method="nope")
 
 
-def test_summary_is_text(lti):
+def test_summary_is_text(lti: TimeSeriesData):
+    """``summary()`` renders the equations and the forecast table as text.
+
+    Parameters
+    ----------
+    lti : TimeSeriesData
+        The shared ``lti_demo`` fixture.
+    """
     res = sysid.run(lti, states=["x1", "x2"], inputs=["u1", "u2"], center="segment",
                     horizons=(24,))
     s = res.summary()

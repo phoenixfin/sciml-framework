@@ -37,6 +37,7 @@ Requires TensorFlow >= 2.10.
 """
 
 import time
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import tensorflow as tf
@@ -44,6 +45,7 @@ import tensorflow as tf
 # ----------------------------------------------------------------------
 # constants (v6 §2), kept at the manuscript's values
 # ----------------------------------------------------------------------
+#: Domain length [m] and final time [s], as numpy floats.
 L_np, T_np = 10.0, 1.0
 L = tf.constant(L_np, dtype=tf.float32)
 G = tf.constant(9.81, dtype=tf.float32)
@@ -70,15 +72,29 @@ b_flat = lambda x: np.zeros_like(x, dtype=np.float32)
 b_bump = lambda x: (0.2 * np.exp(-(x - 5) ** 2)).astype(np.float32)
 
 
-def periodic_fn(x_src, f):
-    """Wrap a sampled profile as a callable, interpolating periodically."""
+def periodic_fn(x_src: np.ndarray, f: np.ndarray) -> Callable[[np.ndarray], np.ndarray]:
+    """Wrap a sampled profile as a callable, interpolating periodically.
+
+    Parameters
+    ----------
+    x_src : np.ndarray
+        Grid the profile is sampled on, ``(nx,)``.
+    f : np.ndarray
+        Profile values on that grid, ``(nx,)``.
+
+    Returns
+    -------
+    Callable[[np.ndarray], np.ndarray]
+        Function of ``x`` returning float32 values, wrapped with period
+        ``L_np`` so queries outside the domain fold back into it.
+    """
     return lambda x: np.interp(x, x_src, f, period=L_np).astype(np.float32)
 
 
 # ----------------------------------------------------------------------
 # model (v6 §6)
 # ----------------------------------------------------------------------
-def _elu_plus_one(z):
+def _elu_plus_one(z: "tf.Tensor") -> "tf.Tensor":
     """``elu(z) + 1``, evaluated without the cancellation.
 
     Writing it literally as ``tf.nn.elu(z) + 1`` forms ``exp(z) - 1`` and then adds
@@ -86,13 +102,45 @@ def _elu_plus_one(z):
     the depth to the floor *and* zeroes the gradient there. Taking the branches
     directly keeps it strictly positive and differentiable. The lower clip stops
     exp underflowing at large negative z.
+
+    Parameters
+    ----------
+    z : tf.Tensor
+        Input tensor, clipped to ``[-20, 20]``.
+
+    Returns
+    -------
+    tf.Tensor
+        ``z + 1`` where ``z >= 0`` and ``exp(z)`` below: strictly positive and
+        differentiable everywhere.
     """
     z = tf.clip_by_value(z, -20.0, 20.0)
     return tf.where(z >= 0.0, z + 1.0, tf.exp(tf.minimum(z, 0.0)))
 
 
-def make_mlp(in_d, hidden, out_d, name, out_std=0.1):
-    """Fully connected MLP with tanh activations and small output init."""
+def make_mlp(in_d: int, hidden: Sequence[int], out_d: int, name: str,
+             out_std: float = 0.1) -> "tf.keras.Model":
+    """Fully connected MLP with tanh activations and small output init.
+
+    Parameters
+    ----------
+    in_d : int
+        Input dimension.
+    hidden : Sequence[int]
+        Units in each hidden layer.
+    out_d : int
+        Output dimension.
+    name : str
+        Keras model name.
+    out_std : float
+        Standard deviation of the truncated-normal output initialiser; small
+        values start the correction field ``F`` near zero.
+
+    Returns
+    -------
+    tf.keras.Model
+        Functional model mapping ``(batch, in_d)`` to ``(batch, out_d)``.
+    """
     inp = tf.keras.Input(shape=(in_d,))
     x = inp
     for h in hidden:
@@ -127,9 +175,19 @@ class PIDeepONetSWE(tf.keras.Model):
     rather than exponentially in the correction field. That matters: ``exp`` costs a
     factor ~2.4 on unseen-pair generalisation, and exponential amplification of F is
     the obvious suspect.
+
+    Parameters
+    ----------
+    m : int
+        Number of sensor points.
+    p : int
+        Branch / trunk latent width.
+    ic_mode : str
+        Initial-condition shortcut: ``"paper"``, ``"shifted"``, ``"exp"`` or
+        ``"elu_scaled"``.
     """
 
-    def __init__(self, m=M, p=P, ic_mode="paper"):
+    def __init__(self, m: int = M, p: int = P, ic_mode: str = "paper"):
         super().__init__()
         hid = [128, 128, 128]
         self.m, self.p, self.ic_mode = m, p, ic_mode
@@ -140,8 +198,34 @@ class PIDeepONetSWE(tf.keras.Model):
         self.th = make_mlp(2, hid, p, 'th', out_std=0.1)
         self.thu = make_mlp(2, hid, p, 'thu', out_std=0.1)
 
-    def call(self, h0s, bs, xt, h0_at_x, b_at_x):
-        """h0s, bs: (B, M) sensors; xt: (N, 2); h0_at_x, b_at_x: (B, N)."""
+    def call(self, h0s: "tf.Tensor", bs: "tf.Tensor", xt: "tf.Tensor",
+             h0_at_x: "tf.Tensor", b_at_x: "tf.Tensor") -> Tuple["tf.Tensor", "tf.Tensor"]:
+        """Predict depth and discharge on a query set shared by the whole batch.
+
+        Parameters
+        ----------
+        h0s : tf.Tensor
+            Initial depth at the sensors, ``(B, M)``.
+        bs : tf.Tensor
+            Bathymetry at the sensors, ``(B, M)``.
+        xt : tf.Tensor
+            Query coordinates ``(N, 2)`` as ``[x, t]``, shared across the batch.
+        h0_at_x : tf.Tensor
+            Initial depth at the query positions, ``(B, N)``.
+        b_at_x : tf.Tensor
+            Bathymetry at the query positions, ``(B, N)``.
+
+        Returns
+        -------
+        tuple of (tf.Tensor, tf.Tensor)
+            ``(h, hu)``, both ``(B, N)``. The discharge is ``t * F_hu``, zero at
+            ``t = 0`` by construction.
+
+        Raises
+        ------
+        ValueError
+            If ``ic_mode`` is not one of the four supported variants.
+        """
         t = tf.transpose(xt[:, 1:2])                                    # (1, N)
         beta_h = self.b1h(h0s) + self.b2h(bs)                           # (B, P)
         beta_hu = self.b1hu(h0s) + self.b2hu(bs)
@@ -165,18 +249,34 @@ class PIDeepONetSWE(tf.keras.Model):
             raise ValueError(self.ic_mode)
         return h_pred, t * F_hu
 
-    def build_once(self):
-        """Warm-up call so ``trainable_variables`` is populated."""
+    def build_once(self) -> "PIDeepONetSWE":
+        """Warm-up call so ``trainable_variables`` is populated.
+
+        Returns
+        -------
+        PIDeepONetSWE
+            The model itself, so the call can be chained onto construction.
+        """
         d = tf.zeros((2, self.m))
         self(d, d, tf.zeros((4, 2)), tf.ones((2, 4)), tf.zeros((2, 4)))
         return self
 
 
 class SharedBranchDeepONet(tf.keras.Model):
-    """A1: one shared beta feeding both outputs (v6 §18). Couples the h and hu
-    heads, which is what triggers the BC collapse the ablation is meant to show."""
+    """A1: one shared beta feeding both outputs (v6 §18).
 
-    def __init__(self, m=M, p=P):
+    Sharing the coefficient vector couples the ``h`` and ``hu`` heads, which is
+    what triggers the BC collapse the ablation is meant to show.
+
+    Parameters
+    ----------
+    m : int
+        Number of sensor points.
+    p : int
+        Branch / trunk latent width.
+    """
+
+    def __init__(self, m: int = M, p: int = P):
         super().__init__()
         hid = [128, 128, 128]
         self.m, self.p = m, p
@@ -185,7 +285,28 @@ class SharedBranchDeepONet(tf.keras.Model):
         self.th = make_mlp(2, hid, p, "th_shared", out_std=0.1)
         self.thu = make_mlp(2, hid, p, "thu_shared", out_std=0.1)
 
-    def call(self, h0s, bs, xt, h0_at_x, b_at_x):
+    def call(self, h0s: "tf.Tensor", bs: "tf.Tensor", xt: "tf.Tensor",
+             h0_at_x: "tf.Tensor", b_at_x: "tf.Tensor") -> Tuple["tf.Tensor", "tf.Tensor"]:
+        """Predict with the shared coefficient vector and the paper's shortcut.
+
+        Parameters
+        ----------
+        h0s : tf.Tensor
+            Initial depth at the sensors, ``(B, M)``.
+        bs : tf.Tensor
+            Bathymetry at the sensors, ``(B, M)``.
+        xt : tf.Tensor
+            Query coordinates ``(N, 2)``.
+        h0_at_x : tf.Tensor
+            Initial depth at the query positions, ``(B, N)``.
+        b_at_x : tf.Tensor
+            Bathymetry at the query positions, ``(B, N)``.
+
+        Returns
+        -------
+        tuple of (tf.Tensor, tf.Tensor)
+            ``(h, hu)``, both ``(B, N)``.
+        """
         t = tf.transpose(xt[:, 1:2])
         beta = self.b1(h0s) + self.b2(bs)                      # shared
         F_h = tf.linalg.matmul(beta, tf.transpose(self.th(xt)))
@@ -194,17 +315,34 @@ class SharedBranchDeepONet(tf.keras.Model):
                   + (b_at_x + H_MIN) + EPS)
         return h_pred, t * F_hu
 
-    def build_once(self):
+    def build_once(self) -> "SharedBranchDeepONet":
+        """Warm-up call so ``trainable_variables`` is populated.
+
+        Returns
+        -------
+        SharedBranchDeepONet
+            The model itself.
+        """
         d = tf.zeros((2, self.m))
         self(d, d, tf.zeros((4, 2)), tf.ones((2, 4)), tf.zeros((2, 4)))
         return self
 
 
 class NoICShortcutDeepONet(tf.keras.Model):
-    """A2: separate branches, no analytic IC shortcut (v6 §18). The initial
-    condition is imposed by a loss term instead, so the outputs are raw."""
+    """A2: separate branches, no analytic IC shortcut (v6 §18).
 
-    def __init__(self, m=M, p=P):
+    The initial condition is imposed by a loss term instead, so the outputs are
+    the raw branch-trunk contractions.
+
+    Parameters
+    ----------
+    m : int
+        Number of sensor points.
+    p : int
+        Branch / trunk latent width.
+    """
+
+    def __init__(self, m: int = M, p: int = P):
         super().__init__()
         hid = [128, 128, 128]
         self.m, self.p = m, p
@@ -215,13 +353,42 @@ class NoICShortcutDeepONet(tf.keras.Model):
         self.th = make_mlp(2, hid, p, "th_noic", out_std=0.1)
         self.thu = make_mlp(2, hid, p, "thu_noic", out_std=0.1)
 
-    def call(self, h0s, bs, xt, h0_at_x, b_at_x):
+    def call(self, h0s: "tf.Tensor", bs: "tf.Tensor", xt: "tf.Tensor",
+             h0_at_x: "tf.Tensor", b_at_x: "tf.Tensor") -> Tuple["tf.Tensor", "tf.Tensor"]:
+        """Predict the raw correction fields, with no shortcut applied.
+
+        Parameters
+        ----------
+        h0s : tf.Tensor
+            Initial depth at the sensors, ``(B, M)``.
+        bs : tf.Tensor
+            Bathymetry at the sensors, ``(B, M)``.
+        xt : tf.Tensor
+            Query coordinates ``(N, 2)``.
+        h0_at_x : tf.Tensor
+            Initial depth at the query positions, ``(B, N)``. Unused here: the
+            initial condition is a loss term, not an architectural constraint.
+        b_at_x : tf.Tensor
+            Bathymetry at the query positions, ``(B, N)``. Unused, as above.
+
+        Returns
+        -------
+        tuple of (tf.Tensor, tf.Tensor)
+            ``(h, hu)``, both ``(B, N)``.
+        """
         bh = self.b1h(h0s) + self.b2h(bs)
         bhu = self.b1hu(h0s) + self.b2hu(bs)
         return (tf.linalg.matmul(bh, tf.transpose(self.th(xt))),
                 tf.linalg.matmul(bhu, tf.transpose(self.thu(xt))))
 
-    def build_once(self):
+    def build_once(self) -> "NoICShortcutDeepONet":
+        """Warm-up call so ``trainable_variables`` is populated.
+
+        Returns
+        -------
+        NoICShortcutDeepONet
+            The model itself.
+        """
         d = tf.zeros((2, self.m))
         self(d, d, tf.zeros((4, 2)), tf.ones((2, 4)), tf.zeros((2, 4)))
         return self
@@ -231,8 +398,22 @@ class NoICShortcutDeepONet(tf.keras.Model):
 # training utilities (v6 §7)
 # ----------------------------------------------------------------------
 @tf.function(reduce_retracing=True)
-def grid_interp(grid_data, x_query):
-    """Linear interpolation: (batch, GRID) x (N,) -> (batch, N)."""
+def grid_interp(grid_data: "tf.Tensor", x_query: "tf.Tensor") -> "tf.Tensor":
+    """Linearly interpolate grid data at arbitrary query positions.
+
+    Parameters
+    ----------
+    grid_data : tf.Tensor
+        Values on the uniform grid, ``(batch, GRID)``.
+    x_query : tf.Tensor
+        Query positions ``(N,)`` in ``[0, L]``; indices are clipped at the
+        edges rather than wrapped.
+
+    Returns
+    -------
+    tf.Tensor
+        Interpolated values, ``(batch, N)``.
+    """
     idx_f = x_query / L * tf.cast(GRID - 1, tf.float32)
     idx_lo = tf.clip_by_value(tf.cast(tf.floor(idx_f), tf.int32), 0, GRID - 2)
     alpha = idx_f - tf.cast(idx_lo, tf.float32)
@@ -240,16 +421,49 @@ def grid_interp(grid_data, x_query):
             + tf.gather(grid_data, idx_lo + 1, axis=1) * alpha)
 
 
-def make_optimizer():
+def make_optimizer() -> "tf.keras.optimizers.Optimizer":
+    """Build v6's Adam optimizer with its staircase decay schedule.
+
+    Returns
+    -------
+    tf.keras.optimizers.Optimizer
+        Adam with the learning rate halving every 10k steps from 1e-3.
+    """
     lr = tf.keras.optimizers.schedules.ExponentialDecay(
         1e-3, decay_steps=10000, decay_rate=0.5, staircase=True)
     return tf.keras.optimizers.Adam(lr)
 
 
 class Bundle:
-    """The tensors v6's training step needs, on v6's sensor/grid layout."""
+    """The tensors v6's training step needs, on v6's sensor/grid layout.
 
-    def __init__(self, H0_s, B_s, H0_grid, B_grid, D_h, D_hu, sup_idx, t_snaps):
+    The *pool* is every ``(h0, b)`` pair available for the boundary-condition
+    term; the *supervised* subset (``sup_idx``) is the smaller set for which
+    snapshot targets exist.
+
+    Parameters
+    ----------
+    H0_s : np.ndarray
+        Initial depth at the sensors, ``(n_pool, M)``.
+    B_s : np.ndarray
+        Bathymetry at the sensors, ``(n_pool, M)``.
+    H0_grid : np.ndarray
+        Initial depth on the dense grid, ``(n_pool, GRID)``.
+    B_grid : np.ndarray
+        Bathymetry on the dense grid, ``(n_pool, GRID)``.
+    D_h : Sequence[np.ndarray]
+        Depth targets, one ``(n_sup, GRID)`` array per snapshot time.
+    D_hu : Sequence[np.ndarray]
+        Discharge targets, same layout as ``D_h``.
+    sup_idx : np.ndarray
+        Indices into the pool that carry supervision, ``(n_sup,)``.
+    t_snaps : Sequence[float]
+        Snapshot times matching the entries of ``D_h`` / ``D_hu``.
+    """
+
+    def __init__(self, H0_s: np.ndarray, B_s: np.ndarray, H0_grid: np.ndarray,
+                 B_grid: np.ndarray, D_h: Sequence[np.ndarray], D_hu: Sequence[np.ndarray],
+                 sup_idx: np.ndarray, t_snaps: Sequence[float]):
         self.H0_s, self.B_s = H0_s, B_s
         self.H0_grid, self.B_grid = H0_grid, B_grid
         self.n_pool = len(H0_s)
@@ -269,23 +483,52 @@ class Bundle:
         self.D_Bg = tf.constant(B_grid[sup_idx])
 
 
-    def subset(self, n):
-        """A bundle supervised on only the first n trajectories (pool unchanged)."""
+    def subset(self, n: int) -> "Bundle":
+        """Restrict supervision to the first ``n`` trajectories.
+
+        Parameters
+        ----------
+        n : int
+            Number of leading supervised trajectories to keep.
+
+        Returns
+        -------
+        Bundle
+            A new bundle with the same pool but only ``n`` supervised
+            trajectories — the data-scaling axis of the study.
+        """
         return Bundle(self.H0_s, self.B_s, self.H0_grid, self.B_grid,
                       [a[:n] for a in self._D_h], [a[:n] for a in self._D_hu],
                       self._sup_idx[:n], self.t_snaps)
 
 
-def build_bundle(x_src, h0_all, b_all, h_snaps, hu_snaps, t_snaps, n_sup=None):
+def build_bundle(x_src: np.ndarray, h0_all: np.ndarray, b_all: np.ndarray,
+                 h_snaps: np.ndarray, hu_snaps: np.ndarray,
+                 t_snaps: Sequence[float], n_sup: Optional[int] = None) -> Bundle:
     """Map a periodic dataset on an arbitrary grid onto v6's layout.
 
     Parameters
     ----------
-    x_src : (nx,) source grid (cell centres are fine — interpolation is periodic).
-    h0_all, b_all : (N, nx) initial depth and bathymetry for the whole pool.
-    h_snaps, hu_snaps : (n_sup, n_t, nx) supervised snapshots.
-    t_snaps : the snapshot times.
-    n_sup : how many leading rows carry supervision (defaults to len(h_snaps)).
+    x_src : np.ndarray
+        Source grid ``(nx,)``. Cell centres are fine — the interpolation is
+        periodic, so a staggered grid needs no special handling.
+    h0_all : np.ndarray
+        Initial depth for the whole pool, ``(N, nx)``.
+    b_all : np.ndarray
+        Bathymetry for the whole pool, ``(N, nx)``.
+    h_snaps : np.ndarray
+        Supervised depth snapshots, ``(n_sup, n_t, nx)``.
+    hu_snaps : np.ndarray
+        Supervised discharge snapshots, ``(n_sup, n_t, nx)``.
+    t_snaps : Sequence[float]
+        The snapshot times, matching the second axis of the snapshot arrays.
+    n_sup : Optional[int]
+        How many leading rows carry supervision. Defaults to ``len(h_snaps)``.
+
+    Returns
+    -------
+    Bundle
+        The dataset resampled onto the sensor and dense grids v6 expects.
     """
     n_sup = len(h_snaps) if n_sup is None else n_sup
 
@@ -300,8 +543,28 @@ def build_bundle(x_src, h0_all, b_all, h_snaps, hu_snaps, t_snaps, n_sup=None):
                   np.arange(n_sup), t_snaps)
 
 
-def make_train_step(mdl, opt, bd, lam_bc_val=5.0):
-    """v6's compiled supervised step: full-batch data loss + periodic BC."""
+def make_train_step(mdl: "tf.keras.Model", opt: "tf.keras.optimizers.Optimizer",
+                    bd: Bundle, lam_bc_val: float = 5.0) -> Callable[..., tuple]:
+    """Build v6's compiled supervised step: full-batch data loss + periodic BC.
+
+    Parameters
+    ----------
+    mdl : tf.keras.Model
+        Model to train; must accept v6's five-argument ``call``.
+    opt : tf.keras.optimizers.Optimizer
+        Optimizer whose ``apply_gradients`` is called each step.
+    bd : Bundle
+        Training data. The data term uses *all* supervised trajectories every
+        step; only the BC term is mini-batched.
+    lam_bc_val : float
+        Weight on the periodic boundary-condition term.
+
+    Returns
+    -------
+    Callable
+        A ``tf.function`` taking ``(h0_b, b_b, h0_g, b_g, t_bc)`` and returning
+        ``(loss, Ld, Lb, gnorm)``.
+    """
     lam_bc = tf.constant(lam_bc_val, dtype=tf.float32)
 
     @tf.function(reduce_retracing=True)
@@ -329,8 +592,33 @@ def make_train_step(mdl, opt, bd, lam_bc_val=5.0):
     return step
 
 
-def train_model(mdl, bd, n_iter, seed=42, log_every=1000, verbose=True):
-    """v6's full supervised training loop. Returns the history dict."""
+def train_model(mdl: "tf.keras.Model", bd: Bundle, n_iter: int, seed: int = 42,
+                log_every: int = 1000, verbose: bool = True) -> Dict[str, List[float]]:
+    """Run v6's full supervised training loop.
+
+    One warm-up call plus five timed steps precede the loop, so the printed ETA
+    reflects the compiled step rather than tracing.
+
+    Parameters
+    ----------
+    mdl : tf.keras.Model
+        Model to train, already built.
+    bd : Bundle
+        Training data.
+    n_iter : int
+        Number of optimisation steps.
+    seed : int
+        Seed for the mini-batch and boundary-time sampler.
+    log_every : int
+        Record (and print) the losses every this many steps.
+    verbose : bool
+        Whether to print progress.
+
+    Returns
+    -------
+    Dict[str, List[float]]
+        History with keys ``iter``, ``Ld``, ``Lb``, ``total`` and ``gnorm``.
+    """
     rng = np.random.default_rng(seed)
     opt = make_optimizer()
     step = make_train_step(mdl, opt, bd)
@@ -374,11 +662,36 @@ def train_model(mdl, bd, n_iter, seed=42, log_every=1000, verbose=True):
     return history
 
 
-def make_ablation_step(mdl, opt, bd, lam_bc=5.0, lam_ic=10.0, use_ic_shortcut=True):
+def make_ablation_step(mdl: "tf.keras.Model", opt: "tf.keras.optimizers.Optimizer",
+                       bd: Bundle, lam_bc: float = 5.0, lam_ic: float = 10.0,
+                       use_ic_shortcut: bool = True) -> Callable[..., tuple]:
     """v6 §18's step: the supervised step plus an optional explicit IC loss.
 
     A2 has no analytic shortcut, so the initial condition has to be imposed by a
     penalty. ``lam_ic`` and the t=0 query grid follow v6.
+
+    Parameters
+    ----------
+    mdl : tf.keras.Model
+        Model to train.
+    opt : tf.keras.optimizers.Optimizer
+        Optimizer whose ``apply_gradients`` is called each step.
+    bd : Bundle
+        Training data.
+    lam_bc : float
+        Weight on the periodic boundary-condition term.
+    lam_ic : float
+        Weight on the explicit initial-condition term (used only when
+        ``use_ic_shortcut`` is False).
+    use_ic_shortcut : bool
+        Whether the model imposes the initial condition architecturally. If
+        False, the IC penalty is added to the loss.
+
+    Returns
+    -------
+    Callable
+        A ``tf.function`` taking ``(h0_b, b_b, h0_g, b_g, t_bc, h0_ic_s,
+        b_ic_s, h0_ic_g, b_ic_g)`` and returning ``(loss, Ld, Lb, gnorm)``.
     """
     lbc = tf.constant(lam_bc, tf.float32)
     lic = tf.constant(lam_ic, tf.float32)
@@ -412,9 +725,36 @@ def make_ablation_step(mdl, opt, bd, lam_bc=5.0, lam_ic=10.0, use_ic_shortcut=Tr
     return step
 
 
-def train_arch_variant(mdl, bd, n_iter, use_ic_shortcut=True, seed=0,
-                       log_every=2000, verbose=True):
-    """Training loop for the A1 / A2 / A3 architecture ablation."""
+def train_arch_variant(mdl: "tf.keras.Model", bd: Bundle, n_iter: int,
+                       use_ic_shortcut: bool = True, seed: int = 0,
+                       log_every: int = 2000,
+                       verbose: bool = True) -> Dict[str, List[float]]:
+    """Training loop for the A1 / A2 / A3 architecture ablation.
+
+    Parameters
+    ----------
+    mdl : tf.keras.Model
+        Variant to train (shared-branch, no-shortcut, or the baseline).
+    bd : Bundle
+        Training data.
+    n_iter : int
+        Number of optimisation steps; matched across variants so the comparison
+        is at a common budget.
+    use_ic_shortcut : bool
+        Whether the variant imposes the initial condition architecturally.
+    seed : int
+        Seed for the samplers; vary it to get the paired-by-seed contrasts the
+        study reports.
+    log_every : int
+        Record (and print) the losses every this many steps.
+    verbose : bool
+        Whether to print progress.
+
+    Returns
+    -------
+    Dict[str, List[float]]
+        History with keys ``iter``, ``Ld`` and ``Lb``.
+    """
     rng = np.random.default_rng(seed)
     opt = make_optimizer()
     step = make_ablation_step(mdl, opt, bd, use_ic_shortcut=use_ic_shortcut)
@@ -443,12 +783,46 @@ def train_arch_variant(mdl, bd, n_iter, use_ic_shortcut=True, seed=0,
 # ----------------------------------------------------------------------
 # PDE residuals
 # ----------------------------------------------------------------------
-def pde_residual_fd(mdl, h0b, bb, h0g, bg, xc, tc, momentum="time_only", eps=1e-3):
+def pde_residual_fd(mdl: "tf.keras.Model", h0b: "tf.Tensor", bb: "tf.Tensor",
+                    h0g: "tf.Tensor", bg: "tf.Tensor", xc: "tf.Tensor", tc: "tf.Tensor",
+                    momentum: str = "time_only", eps: float = 1e-3) -> "tf.Tensor":
     """Central-difference SWE residual, mean of ``R1**2 + R2**2``.
 
     ``momentum="time_only"`` is v6 verbatim (``R2 = hu_t``); ``"full"`` adds the
     flux divergence and the bed source term that make it the actual momentum
-    equation.
+    equation. The distinction matters: the time-only form is minimised exactly
+    by ``hu == 0``, ``h == h0``, which is the attractor v6 reports.
+
+    Parameters
+    ----------
+    mdl : tf.keras.Model
+        Model to differentiate.
+    h0b : tf.Tensor
+        Initial depth at the sensors, ``(B, M)``.
+    bb : tf.Tensor
+        Bathymetry at the sensors, ``(B, M)``.
+    h0g : tf.Tensor
+        Initial depth on the dense grid, ``(B, GRID)``.
+    bg : tf.Tensor
+        Bathymetry on the dense grid, ``(B, GRID)``.
+    xc : tf.Tensor
+        Collocation positions, ``(N,)``.
+    tc : tf.Tensor
+        Collocation times, ``(N,)``.
+    momentum : str
+        ``"time_only"`` or ``"full"``.
+    eps : float
+        Half-width of the central difference, in the units of ``x`` and ``t``.
+
+    Returns
+    -------
+    tf.Tensor
+        Scalar mean squared residual.
+
+    Raises
+    ------
+    ValueError
+        If ``momentum`` is neither ``"time_only"`` nor ``"full"``.
     """
     e = tf.constant(eps, tf.float32)
 
@@ -479,12 +853,41 @@ def pde_residual_fd(mdl, h0b, bb, h0g, bg, xc, tc, momentum="time_only", eps=1e-
     return tf.reduce_mean(R1 ** 2 + R2 ** 2)
 
 
-def pde_residual_ad(mdl, h0b, bb, h0g, bg, xc, tc):
+def pde_residual_ad(mdl: "tf.keras.Model", h0b: "tf.Tensor", bb: "tf.Tensor",
+                    h0g: "tf.Tensor", bg: "tf.Tensor",
+                    xc: "tf.Tensor", tc: "tf.Tensor") -> "tf.Tensor":
     """Autodiff SWE residual with the full momentum equation.
 
     Requires a single trajectory (``h0b.shape[0] == 1``): v6's ``call`` shares one
     query set across the batch, so ``tape.gradient`` w.r.t. the query coordinates
     would sum over the batch instead of giving per-sample derivatives.
+
+    Parameters
+    ----------
+    mdl : tf.keras.Model
+        Model to differentiate.
+    h0b : tf.Tensor
+        Initial depth at the sensors, ``(1, M)``.
+    bb : tf.Tensor
+        Bathymetry at the sensors, ``(1, M)``.
+    h0g : tf.Tensor
+        Initial depth on the dense grid, ``(1, GRID)``.
+    bg : tf.Tensor
+        Bathymetry on the dense grid, ``(1, GRID)``.
+    xc : tf.Tensor
+        Collocation positions, ``(N,)``, watched by the tape.
+    tc : tf.Tensor
+        Collocation times, ``(N,)``, watched by the tape.
+
+    Returns
+    -------
+    tf.Tensor
+        Scalar mean squared residual.
+
+    Raises
+    ------
+    ValueError
+        If the batch holds more than one trajectory.
     """
     if int(h0b.shape[0]) != 1:
         raise ValueError("pde_residual_ad needs a single trajectory (B = 1); "
@@ -505,8 +908,33 @@ def pde_residual_ad(mdl, h0b, bb, h0g, bg, xc, tc):
     return tf.reduce_mean(R1 ** 2 + R2 ** 2)
 
 
-def make_pi_step(mdl, opt, momentum="time_only", lam_pde=1.0, lam_bc=5.0, use_bc=True):
-    """Physics-only training step (v6 §17), with the BC term switchable off."""
+def make_pi_step(mdl: "tf.keras.Model", opt: "tf.keras.optimizers.Optimizer",
+                 momentum: str = "time_only", lam_pde: float = 1.0,
+                 lam_bc: float = 5.0, use_bc: bool = True) -> Callable[..., tuple]:
+    """Build the physics-only training step (v6 §17), with the BC term optional.
+
+    Parameters
+    ----------
+    mdl : tf.keras.Model
+        Model to train.
+    opt : tf.keras.optimizers.Optimizer
+        Optimizer whose ``apply_gradients`` is called each step.
+    momentum : str
+        Momentum residual passed to :func:`pde_residual_fd`.
+    lam_pde : float
+        Weight on the PDE residual.
+    lam_bc : float
+        Weight on the periodic boundary-condition term.
+    use_bc : bool
+        Whether to include the BC term at all — switching it off is what
+        isolates the residual's own minimiser.
+
+    Returns
+    -------
+    Callable
+        A ``tf.function`` taking ``(h0_b, b_b, h0_g, b_g, t_bc, xc, tc)`` and
+        returning ``(loss, Lpde, Lbc, gnorm)``.
+    """
     lp = tf.constant(lam_pde, tf.float32)
     lbc = tf.constant(lam_bc, tf.float32)
 
@@ -535,15 +963,50 @@ def make_pi_step(mdl, opt, momentum="time_only", lam_pde=1.0, lam_bc=5.0, use_bc
 # ----------------------------------------------------------------------
 # inference helpers (v6 §10)
 # ----------------------------------------------------------------------
-def rel_l2(pred, ref):
+def rel_l2(pred: np.ndarray, ref: np.ndarray) -> float:
+    """Relative L2 error against the reference's total magnitude.
+
+    Parameters
+    ----------
+    pred : np.ndarray
+        Predicted field.
+    ref : np.ndarray
+        Reference field, same shape as ``pred``.
+
+    Returns
+    -------
+    float
+        ``||pred - ref|| / (||ref|| + 1e-10)``.
+    """
     return float(np.linalg.norm(pred - ref) / (np.linalg.norm(ref) + 1e-10))
 
 
-def predict_at(mdl, h0_s, b_s, x, t, h0_at_x, b_at_x):
-    """Predict at one time on a shared x-grid for a batch of (h0, b) pairs.
+def predict_at(mdl: "tf.keras.Model", h0_s: np.ndarray, b_s: np.ndarray,
+               x: np.ndarray, t: float, h0_at_x: np.ndarray,
+               b_at_x: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
+    """Predict at one time on a shared x-grid for a batch of ``(h0, b)`` pairs.
 
-    h0_s, b_s : (B, M) sensors; x : (N,); h0_at_x, b_at_x : (B, N).
-    Returns (h, hu), both (B, N).
+    Parameters
+    ----------
+    mdl : tf.keras.Model
+        Trained model.
+    h0_s : np.ndarray
+        Initial depth at the sensors, ``(B, M)``.
+    b_s : np.ndarray
+        Bathymetry at the sensors, ``(B, M)``.
+    x : np.ndarray
+        Query positions, ``(N,)``.
+    t : float
+        Query time.
+    h0_at_x : np.ndarray
+        Initial depth at the query positions, ``(B, N)``.
+    b_at_x : np.ndarray
+        Bathymetry at the query positions, ``(B, N)``.
+
+    Returns
+    -------
+    tuple of (np.ndarray, np.ndarray)
+        ``(h, hu)``, both ``(B, N)``.
     """
     xt = tf.constant(np.stack([np.asarray(x, np.float32),
                                np.full(len(x), t, np.float32)], 1))
@@ -554,8 +1017,30 @@ def predict_at(mdl, h0_s, b_s, x, t, h0_at_x, b_at_x):
     return h.numpy(), hu.numpy()
 
 
-def predict_grid(mdl, h0_fn, b_fn, nx=200, nt=100):
-    """Predict on an (nx x nt) space-time grid. Returns (xs, ts, h, hu)."""
+def predict_grid(mdl: "tf.keras.Model", h0_fn: Callable[[np.ndarray], np.ndarray],
+                 b_fn: Callable[[np.ndarray], np.ndarray], nx: int = 200,
+                 nt: int = 100) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Predict a single trajectory on a space-time grid.
+
+    Parameters
+    ----------
+    mdl : tf.keras.Model
+        Trained model.
+    h0_fn : Callable[[np.ndarray], np.ndarray]
+        Initial-depth profile as a function of ``x``.
+    b_fn : Callable[[np.ndarray], np.ndarray]
+        Bathymetry profile as a function of ``x``.
+    nx : int
+        Number of spatial query points.
+    nt : int
+        Number of time levels.
+
+    Returns
+    -------
+    tuple of (np.ndarray, np.ndarray, np.ndarray, np.ndarray)
+        ``(xs, ts, h, hu)``: the two grids ``(nx,)`` and ``(nt,)``, and the two
+        fields, each ``(nt, nx)``.
+    """
     h0_s = h0_fn(x_sensors_np).reshape(1, -1).astype(np.float32)
     b_s = b_fn(x_sensors_np).reshape(1, -1).astype(np.float32)
     xs = np.linspace(0, L_np, nx, dtype=np.float32)

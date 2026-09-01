@@ -13,12 +13,29 @@ from sciml.solvers.dynamical import (
 )
 
 
-def _coef(model, target_idx, feature):
+def _coef(model: SINDy, target_idx: int, feature: str) -> float:
+    """Look up one identified coefficient by feature name.
+
+    Parameters
+    ----------
+    model : SINDy
+        A fitted model.
+    target_idx : int
+        Index of the state equation to read.
+    feature : str
+        Library term name, e.g. ``"x*z"``.
+
+    Returns
+    -------
+    float
+        The coefficient on that term in that equation.
+    """
     i = model.feature_names_.index(feature)
     return model.coef_[i, target_idx]
 
 
 def test_sindy_recovers_lorenz():
+    """SINDy recovers the Lorenz coefficients from a simulated trajectory."""
     t = np.arange(0, 12, 0.002)
     X = simulate(lorenz(), [-8.0, 8.0, 27.0], t)
     m = SINDy(PolynomialLibrary(2), threshold=0.1).fit(X, t=t, input_names=["x", "y", "z"])
@@ -31,6 +48,7 @@ def test_sindy_recovers_lorenz():
 
 
 def test_sindy_recovers_lotka_volterra():
+    """SINDy recovers the Lotka-Volterra coefficients."""
     t = np.arange(0, 30, 0.01)
     X = simulate(lotka_volterra(), [10.0, 5.0], t)
     m = SINDy(PolynomialLibrary(2), threshold=0.05).fit(X, t=t, input_names=["x", "y"])
@@ -41,6 +59,7 @@ def test_sindy_recovers_lotka_volterra():
 
 
 def test_sindy_recovers_van_der_pol():
+    """SINDy recovers the Van der Pol coefficients, cubic term included."""
     t = np.arange(0, 30, 0.01)
     X = simulate(van_der_pol(1.5), [2.0, 0.0], t)
     m = SINDy(PolynomialLibrary(3), threshold=0.05).fit(X, t=t, input_names=["x", "y"])
@@ -51,6 +70,7 @@ def test_sindy_recovers_van_der_pol():
 
 
 def test_dmd_recovers_oscillator_frequency():
+    """DMD recovers an undamped oscillator's frequency."""
     omega, dt = 2.0, 0.05
     t = np.arange(0, 12, dt)
     X = simulate(harmonic_oscillator(omega), [1.0, 0.0], t)

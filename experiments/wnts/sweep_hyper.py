@@ -15,6 +15,7 @@ Usage::
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 
@@ -38,7 +39,20 @@ DTS = [1, 3, 6]
 CLIPS = [0.0, 2.0, 3.0, 5.0]
 
 
-def base_args(**overrides):
+def base_args(**overrides: object):
+    """Default 2019 arguments with ``overrides`` applied.
+
+    Parameters
+    ----------
+    **overrides : object
+        Attribute names and values to set on the parsed namespace.
+
+    Returns
+    -------
+    argparse.Namespace
+        The sweep's baseline arguments: contract year 2019, 24 h rollout
+        stride, plus the requested overrides.
+    """
     args = build_parser().parse_args([])
     args.years = [2019]
     args.ic_stride = 24
@@ -47,7 +61,32 @@ def base_args(**overrides):
     return args
 
 
-def eval_one(data, args, form: str, threshold: float, alpha: float, clip: float) -> dict:
+def eval_one(data: dict, args: "argparse.Namespace", form: str, threshold: float,
+             alpha: float, clip: float) -> dict:
+    """Fit one hyperparameter setting and score it on the held-out segments.
+
+    Parameters
+    ----------
+    data : dict
+        Prepared data from ``prepare_data``.
+    args : argparse.Namespace
+        Protocol settings (fit mode, window, degree, stride, blow-up guard).
+    form : str
+        ``"sindyc"`` for the naive 5-state model, anything else for the
+        reduced 2-state form.
+    threshold : float
+        STRidge sparsity threshold.
+    alpha : float
+        Ridge regularisation strength.
+    clip : float
+        Library saturation level, in z-units; 0 disables clipping.
+
+    Returns
+    -------
+    dict
+        Mean test R^2, NRMSE at 24 h and 72 h, and the 72 h divergence
+        fraction.
+    """
     state_names = P_NAMES if form == "sindyc" else ["p_up", "p_orf"]
     spec = ModelSpec(form, form, state_names, Q_NAMES, clip=clip)
     spec.fit(
@@ -80,6 +119,7 @@ def eval_one(data, args, form: str, threshold: float, alpha: float, clip: float)
 
 
 def main() -> None:
+    """Run the threshold/alpha and dt/clip sweeps (B3) and plot the maps."""
     out = "outputs/wnts_B3"
     os.makedirs(out, exist_ok=True)
 

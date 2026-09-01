@@ -19,6 +19,7 @@ OUT = "outputs/examples"
 
 
 def main():
+    """Fit a Neural ODE to one predator-prey trajectory and plot the learnt flow."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--steps", type=int, default=600)
     ap.add_argument("--lr", type=float, default=1e-2)

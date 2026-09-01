@@ -1,3 +1,5 @@
+"""Conservation and boundedness tests for the ODE and 1D PDE solvers."""
+
 import numpy as np
 
 from sciml.solvers.burgers import burgers_solution
@@ -13,6 +15,7 @@ from sciml.solvers.heat import heat_solution
 
 
 def test_harmonic_energy_conserved():
+    """The harmonic oscillator conserves energy over a long run."""
     t = np.arange(0, 20, 0.01)
     X = simulate(harmonic_oscillator(1.5), [1.0, 0.0], t)
     energy = 1.5**2 * X[:, 0] ** 2 + X[:, 1] ** 2
@@ -20,18 +23,21 @@ def test_harmonic_energy_conserved():
 
 
 def test_lotka_volterra_positive():
+    """Predator-prey populations stay strictly positive."""
     t = np.arange(0, 30, 0.01)
     X = simulate(lotka_volterra(), [10.0, 5.0], t)
     assert X.min() > 0.0
 
 
 def test_lorenz_bounded():
+    """The Lorenz trajectory stays finite and bounded on the attractor."""
     t = np.arange(0, 40, 0.005)
     X = simulate(lorenz(), [1.0, 1.0, 1.0], t)
     assert np.isfinite(X).all() and np.abs(X).max() < 100
 
 
 def test_heat_high_mode_decays():
+    """A single Fourier mode decays at its analytic rate, and the mean is preserved."""
     n = 128
     x = np.linspace(0, 1, n, endpoint=False)
     m, nu, t = 4, 0.01, 0.05
@@ -45,18 +51,21 @@ def test_heat_high_mode_decays():
 
 
 def test_van_der_pol_limit_cycle_bounded():
+    """The Van der Pol orbit stays on a bounded limit cycle."""
     t = np.arange(0, 40, 0.01)
     X = simulate(van_der_pol(1.5), [2.0, 0.0], t)
     assert np.isfinite(X).all() and np.abs(X[:, 0]).max() < 5
 
 
 def test_fitzhugh_nagumo_bounded():
+    """The FitzHugh-Nagumo trajectory stays finite and bounded."""
     t = np.arange(0, 200, 0.05)
     X = simulate(fitzhugh_nagumo(), [-1.0, 1.0], t)
     assert np.isfinite(X).all() and np.abs(X).max() < 5
 
 
 def test_burgers_conserves_mean_dissipates_energy():
+    """Burgers conserves the mean and dissipates energy."""
     n = 128
     x = np.linspace(0, 1, n, endpoint=False)
     u0 = np.sin(2 * np.pi * x) + 0.3

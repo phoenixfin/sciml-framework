@@ -19,6 +19,8 @@ OUT = "outputs/examples"
 
 
 def main():
+    """Simulate the Lorenz attractor, identify its three equations, and plot the
+    attractor beside the identified rollout."""
     t = np.arange(0, 12, 0.002)
     X = simulate(lorenz(), [-8.0, 8.0, 27.0], t)           # (n_t, 3)
 

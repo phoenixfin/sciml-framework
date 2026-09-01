@@ -1,28 +1,91 @@
-"""
-Well-balanced shallow-water solvers, periodic BCs, 1D.
+"""Well-balanced shallow-water solvers on a periodic 1D domain.
 
-  lxf_paper(...)  : the Lax-Friedrichs scheme of the manuscript (Eq. 6), for the CFL audit
-  swe_solve(...)  : Audusse hydrostatic-reconstruction HLL solver,
-                    order=1 (Euler) or order=2 (MUSCL + SSP-RK2)
+Two schemes live here, and the point of the module is the contrast between them:
+
+``lxf_paper``
+    The Lax-Friedrichs scheme of the original manuscript (Eq. 6), kept verbatim
+    so its CFL number and numerical viscosity can be audited rather than
+    assumed.
+``swe_solve``
+    An Audusse hydrostatic-reconstruction HLL solver, first order (Euler) or
+    second order (minmod-MUSCL + SSP-RK2). It is well-balanced: the
+    lake-at-rest state is preserved to machine precision.
+
+Both integrate the 1D shallow-water equations with a bed source term,
+
+.. math::
+
+    \\partial_t h + \\partial_x (hu) = 0, \\qquad
+    \\partial_t (hu) + \\partial_x \\left( \\frac{(hu)^2}{h}
+        + \\tfrac{1}{2} g h^2 \\right) = -g h\\, \\partial_x b,
+
+for depth ``h``, discharge ``hu`` and bathymetry ``b``. The conserved state is
+stacked as ``q = np.stack([h, hu])`` with shape ``(2, nx)``.
+
+See ``RESULTS.md`` §1.5 for the error budget that motivated the second solver.
 """
+
+from typing import Dict, List, Optional, Tuple
+
 import numpy as np
 
+#: Gravitational acceleration [m/s^2].
 G = 9.81
+#: Floor used to desingularise divisions by the depth.
 _EPS = 1e-12
 
 
 # ----------------------------------------------------------------------
 # the manuscript's scheme, kept verbatim for the audit
 # ----------------------------------------------------------------------
-def _flux(q):
+def _flux(q: np.ndarray) -> np.ndarray:
+    """Physical flux of the shallow-water system.
+
+    Parameters
+    ----------
+    q : np.ndarray
+        Conserved state ``(2, nx)``: depth ``h`` and discharge ``hu``.
+
+    Returns
+    -------
+    np.ndarray
+        Flux ``(2, nx)``: ``[hu, (hu)^2 / h + g h^2 / 2]``, with the depth
+        floored at ``_EPS`` in the denominator.
+    """
     h, hu = q[0], q[1]
     hs = np.maximum(h, _EPS)
     return np.stack([hu, hu * hu / hs + 0.5 * G * h * h])
 
 
-def lxf_paper(x, h0, b, T, nt):
-    """Lax-Friedrichs exactly as Eq. (6): fixed dt = T/nt, periodic."""
-    nx = x.size
+def lxf_paper(
+    x: np.ndarray, h0: np.ndarray, b: np.ndarray, T: float, nt: int
+) -> Tuple[np.ndarray, float, float, float]:
+    """Integrate with Lax-Friedrichs exactly as in Eq. (6) of the manuscript.
+
+    The timestep is *fixed* at ``T / nt`` rather than chosen from a CFL
+    condition, which is what makes the audit necessary: the realised CFL number
+    is returned so the scheme's numerical viscosity can be evaluated with
+    ``lxf_viscosity`` instead of guessed.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Cell centres ``(nx,)``, uniformly spaced.
+    h0 : np.ndarray
+        Initial depth ``(nx,)``. The initial discharge is zero.
+    b : np.ndarray
+        Bathymetry ``(nx,)`` on the same grid.
+    T : float
+        Final time [s].
+    nt : int
+        Number of fixed timesteps.
+
+    Returns
+    -------
+    tuple of (np.ndarray, float, float, float)
+        ``(q, cfl_max, dx, dt)``: the final state ``(2, nx)``, the largest CFL
+        number realised over the run, the grid spacing and the timestep.
+    """
     dx = x[1] - x[0]
     dt = T / nt
     q = np.stack([h0.copy(), np.zeros_like(h0)])
@@ -37,20 +100,74 @@ def lxf_paper(x, h0, b, T, nt):
     return q, cfl_max, dx, dt
 
 
-def lxf_viscosity(dx, dt, cfl):
-    """Modified-equation diffusion coefficient of Lax-Friedrichs [m^2/s]."""
+def lxf_viscosity(dx: float, dt: float, cfl: float) -> float:
+    """Modified-equation diffusion coefficient of Lax-Friedrichs.
+
+    The scheme behaves like the exact equations plus a diffusion term of this
+    strength. Note it *grows* as ``dt`` falls at fixed ``dx``, so a
+    conservatively small timestep makes the smearing worse, not better.
+
+    Parameters
+    ----------
+    dx : float
+        Grid spacing [m].
+    dt : float
+        Timestep [s].
+    cfl : float
+        Realised CFL number (e.g. ``cfl_max`` from :func:`lxf_paper`).
+
+    Returns
+    -------
+    float
+        Diffusion coefficient ``dx^2 / (2 dt) (1 - cfl^2)`` [m^2/s].
+    """
     return dx ** 2 / (2.0 * dt) * (1.0 - cfl ** 2)
 
 
 # ----------------------------------------------------------------------
 # well-balanced HLL solver
 # ----------------------------------------------------------------------
-def _vel(h, hu):
-    """Desingularised velocity (Kurganov-Petrova)."""
+def _vel(h: np.ndarray, hu: np.ndarray) -> np.ndarray:
+    """Desingularised velocity (Kurganov-Petrova).
+
+    Parameters
+    ----------
+    h : np.ndarray
+        Depth.
+    hu : np.ndarray
+        Discharge, same shape as ``h``.
+
+    Returns
+    -------
+    np.ndarray
+        ``hu / h`` where the cell is wet, and exactly zero where it is dry
+        (``h <= 1e-8``), so dry cells cannot produce spurious velocities.
+    """
     return np.where(h > 1e-8, hu / np.maximum(h, _EPS), 0.0)
 
 
-def _hll(hL, huL, hR, huR):
+def _hll(
+    hL: np.ndarray, huL: np.ndarray, hR: np.ndarray, huR: np.ndarray
+) -> Tuple[np.ndarray, np.ndarray]:
+    """HLL approximate Riemann solver for the shallow-water system.
+
+    Parameters
+    ----------
+    hL : np.ndarray
+        Depth of the left state at each interface.
+    huL : np.ndarray
+        Discharge of the left state.
+    hR : np.ndarray
+        Depth of the right state.
+    huR : np.ndarray
+        Discharge of the right state.
+
+    Returns
+    -------
+    tuple of (np.ndarray, np.ndarray)
+        ``(F, smax)``: the numerical flux ``(2, nx)`` at each interface and the
+        largest absolute wave speed there, used for the adaptive timestep.
+    """
     uL, uR = _vel(hL, huL), _vel(hR, huR)
     cL, cR = np.sqrt(G * hL), np.sqrt(G * hR)
     sL = np.minimum(uL - cL, uR - cR)
@@ -63,12 +180,50 @@ def _hll(hL, huL, hR, huR):
     return F, np.maximum(np.abs(sL), np.abs(sR))
 
 
-def _minmod(a, c):
+def _minmod(a: np.ndarray, c: np.ndarray) -> np.ndarray:
+    """Minmod slope limiter.
+
+    Parameters
+    ----------
+    a : np.ndarray
+        Backward difference.
+    c : np.ndarray
+        Forward difference, same shape as ``a``.
+
+    Returns
+    -------
+    np.ndarray
+        The smaller of the two in magnitude when they share a sign, else zero.
+    """
     return np.where(a * c <= 0.0, 0.0, np.sign(a) * np.minimum(np.abs(a), np.abs(c)))
 
 
-def _rhs(q, b, dx, order):
-    """dq/dt for the Audusse well-balanced HLL scheme. q=(h,hu), periodic."""
+def _rhs(q: np.ndarray, b: np.ndarray, dx: float, order: int) -> Tuple[np.ndarray, float]:
+    """Semi-discrete right-hand side of the Audusse well-balanced HLL scheme.
+
+    The bed is reconstructed together with the free surface ``eta = h + b``
+    (rather than with the depth), and the interface bed level is raised to
+    ``max`` of the two sides; those two choices are what keep the lake-at-rest
+    state exactly stationary.
+
+    Parameters
+    ----------
+    q : np.ndarray
+        Conserved state ``(2, nx)``, periodic in ``x``.
+    b : np.ndarray
+        Bathymetry ``(nx,)``.
+    dx : float
+        Grid spacing [m].
+    order : int
+        ``1`` for piecewise-constant states, ``2`` for minmod-limited MUSCL
+        reconstruction plus the centred interior bed-slope correction.
+
+    Returns
+    -------
+    tuple of (np.ndarray, float)
+        ``(dq/dt, smax)``: the state derivative ``(2, nx)`` and the largest
+        wave speed over all interfaces.
+    """
     h, hu = q[0], q[1]
     eta = h + b
 
@@ -79,8 +234,10 @@ def _rhs(q, b, dx, order):
     else:
         # minmod-limited slopes on (eta, hu, b); reconstructing eta (not h)
         # together with b is what preserves the lake-at-rest state.
-        def slope(f):
+        # limited cell slope of a field, from its backward/forward differences
+        def slope(f: np.ndarray) -> np.ndarray:
             return _minmod(f - np.roll(f, 1, axis=-1), np.roll(f, -1, axis=-1) - f)
+
         se, sm, sb = slope(eta), slope(hu), slope(b)
         etaL, etaR = eta - 0.5 * se, eta + 0.5 * se      # cell's left / right face value
         huL, huR = hu - 0.5 * sm, hu + 0.5 * sm
@@ -103,9 +260,9 @@ def _rhs(q, b, dx, order):
 
     F, smax = _hll(hsL, husL, hsR, husR)                # F at i+1/2
 
-    # source corrections (Audusse et al. 2004)
-    Sminus = np.stack([np.zeros_like(z), 0.5 * G * (hminus ** 2 - hsL ** 2)])   # at i+1/2, cell i side
-    Splus = np.stack([np.zeros_like(z), 0.5 * G * (hplus ** 2 - hsR ** 2)])     # at i+1/2, cell i+1 side
+    # source corrections (Audusse et al. 2004): at i+1/2, cell i and cell i+1 side
+    Sminus = np.stack([np.zeros_like(z), 0.5 * G * (hminus ** 2 - hsL ** 2)])
+    Splus = np.stack([np.zeros_like(z), 0.5 * G * (hplus ** 2 - hsR ** 2)])
 
     Fright = F + Sminus                    # flux leaving cell i through i+1/2
     Fleft = np.roll(F + Splus, 1, axis=-1)  # flux entering cell i through i-1/2
@@ -119,12 +276,47 @@ def _rhs(q, b, dx, order):
     return -(Fright - Fleft) / dx + interior / dx, np.max(smax)
 
 
-def swe_solve(x, h0, b, T, cfl=0.45, order=2, snapshots=None, max_steps=2_000_000):
-    """
-    Well-balanced HLL solver with adaptive dt.
+def swe_solve(
+    x: np.ndarray,
+    h0: np.ndarray,
+    b: np.ndarray,
+    T: float,
+    cfl: float = 0.45,
+    order: int = 2,
+    snapshots: Optional[List[float]] = None,
+    max_steps: int = 2_000_000,
+) -> Tuple[np.ndarray, Dict[float, Tuple[np.ndarray, np.ndarray]]]:
+    """Integrate the shallow-water equations with the well-balanced HLL scheme.
 
-    snapshots : sorted list of output times (T is always included implicitly if listed)
-    returns   : (q_final, out_dict) where out_dict maps requested time -> (h, hu)
+    The timestep adapts to the fastest wave, and is shortened when needed to
+    land exactly on a requested snapshot time. The depth is clipped at zero
+    after every stage so dry cells stay dry.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Cell centres ``(nx,)``, uniformly spaced.
+    h0 : np.ndarray
+        Initial depth ``(nx,)``. The initial discharge is zero.
+    b : np.ndarray
+        Bathymetry, broadcastable to the shape of ``h0``.
+    T : float
+        Final time [s].
+    cfl : float
+        Courant number used to size the adaptive timestep.
+    order : int
+        ``1`` for first-order Euler, ``2`` for MUSCL + SSP-RK2.
+    snapshots : Optional[List[float]]
+        Times at which to record the state. Need not be sorted; ``T`` itself is
+        only recorded if it appears in the list.
+    max_steps : int
+        Safety cap on the number of timesteps.
+
+    Returns
+    -------
+    tuple of (np.ndarray, dict)
+        ``(q, out)``: the final state ``(2, nx)``, and a mapping from each
+        requested snapshot time to its ``(h, hu)`` pair of ``(nx,)`` arrays.
     """
     dx = x[1] - x[0]
     h0 = np.atleast_1d(np.asarray(h0, dtype=float))
@@ -133,7 +325,8 @@ def swe_solve(x, h0, b, T, cfl=0.45, order=2, snapshots=None, max_steps=2_000_00
     targets = sorted(snapshots) if snapshots else []
     out, t, k = {}, 0.0, 0
 
-    def step(qq, dt):
+    # advance the state by dt: Euler (order 1) or SSP-RK2 (order 2)
+    def step(qq: np.ndarray, dt: float) -> np.ndarray:
         k1, _ = _rhs(qq, b, dx, order)
         if order == 1:
             return qq + dt * k1
@@ -160,16 +353,62 @@ def swe_solve(x, h0, b, T, cfl=0.45, order=2, snapshots=None, max_steps=2_000_00
 # ----------------------------------------------------------------------
 # helpers
 # ----------------------------------------------------------------------
-def cell_centers(L, nx):
+def cell_centers(L: float, nx: int) -> np.ndarray:
+    """Cell centres of a uniform finite-volume grid on ``[0, L]``.
+
+    Parameters
+    ----------
+    L : float
+        Domain length [m].
+    nx : int
+        Number of cells.
+
+    Returns
+    -------
+    np.ndarray
+        Centres ``(nx,)``, offset by half a cell from the edges.
+    """
     dx = L / nx
     return (np.arange(nx) + 0.5) * dx
 
 
-def rel_l2(pred, ref):
+def rel_l2(pred: np.ndarray, ref: np.ndarray) -> float:
+    """Relative L2 error against the total magnitude of the reference.
+
+    Parameters
+    ----------
+    pred : np.ndarray
+        Predicted field.
+    ref : np.ndarray
+        Reference field, same shape as ``pred``.
+
+    Returns
+    -------
+    float
+        ``||pred - ref|| / ||ref||``. For a depth field this is flattered by
+        the constant background depth — prefer :func:`rel_l2_anomaly`.
+    """
     return float(np.linalg.norm(pred - ref) / np.linalg.norm(ref))
 
 
-def rel_l2_anomaly(pred, ref, rest=None):
-    """Relative L2 normalised by the *anomaly* of the reference, not its total magnitude."""
+def rel_l2_anomaly(pred: np.ndarray, ref: np.ndarray, rest: Optional[float] = None) -> float:
+    """Relative L2 error normalised by the *anomaly* of the reference.
+
+    Parameters
+    ----------
+    pred : np.ndarray
+        Predicted field.
+    ref : np.ndarray
+        Reference field, same shape as ``pred``.
+    rest : Optional[float]
+        Rest state to subtract from the reference before taking its norm.
+        Defaults to the mean of ``ref``.
+
+    Returns
+    -------
+    float
+        ``||pred - ref|| / ||ref - rest||``, i.e. the error measured against
+        the part of the signal that actually varies.
+    """
     r = ref.mean() if rest is None else rest
     return float(np.linalg.norm(pred - ref) / np.linalg.norm(ref - r))

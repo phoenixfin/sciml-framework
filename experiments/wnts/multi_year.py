@@ -29,8 +29,28 @@ from .run import build_parser, run_experiment
 KEY = "sindyc_red"
 
 
-def one_run(year: int, test_year: Optional[int], out_dir: str, base_args) -> Optional[dict]:
-    """Run one experiment (within-year or transfer); None on failure."""
+def one_run(year: int, test_year: Optional[int], out_dir: str,
+            base_args: "argparse.Namespace") -> Optional[dict]:
+    """Run one within-year or transfer experiment.
+
+    Parameters
+    ----------
+    year : int
+        Contract year to train on.
+    test_year : Optional[int]
+        Year to test on. ``None`` means a within-year run (chronological
+        split); anything else makes it a transfer run.
+    out_dir : str
+        Parent directory; each run gets its own subdirectory named by tag.
+    base_args : argparse.Namespace
+        Command-line defaults to inherit; only non-None values are copied.
+
+    Returns
+    -------
+    Optional[dict]
+        The run's result dict, or ``None`` if the run raised — a bad year
+        should not kill the sweep.
+    """
     args = build_parser().parse_args([])
     for k, v in vars(base_args).items():
         if hasattr(args, k) and v is not None:
@@ -48,6 +68,21 @@ def one_run(year: int, test_year: Optional[int], out_dir: str, base_args) -> Opt
 
 
 def row(tag: str, res: dict) -> dict:
+    """Flatten one run's metrics into a table row, with skill against baselines.
+
+    Parameters
+    ----------
+    tag : str
+        Run label, e.g. ``"2019"`` or ``"2019_to_2020"``.
+    res : dict
+        The result dict returned by ``run_experiment``.
+
+    Returns
+    -------
+    dict
+        R^2, NRMSE at 24 h and 72 h, divergence fraction, the best baseline at
+        each horizon, and the skill scores against them.
+    """
     m = res["models"][KEY]
     b = res["baselines"]
     best24 = min(v["24"] for v in b.values())
@@ -68,7 +103,22 @@ def row(tag: str, res: dict) -> dict:
 
 
 def coeff_matrix(results: dict, state: str):
-    """(years, terms, matrix) of identified coefficients for one equation."""
+    """Collect identified coefficients for one equation across runs.
+
+    Parameters
+    ----------
+    results : dict
+        Mapping from run tag to that run's result dict.
+    state : str
+        State whose equation to extract, e.g. ``"p_up"``.
+
+    Returns
+    -------
+    tuple
+        ``(years, terms, M)``: the sorted run tags, the union of library terms
+        in first-seen order, and the coefficient matrix ``(n_runs, n_terms)``
+        with zeros where a term was not selected.
+    """
     years = sorted(results)
     terms: List[str] = []
     for y in years:
@@ -84,6 +134,7 @@ def coeff_matrix(results: dict, state: str):
 
 
 def main() -> None:
+    """Run the per-year and transfer sweeps (A1) and plot their spread."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--years",

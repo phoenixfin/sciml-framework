@@ -43,6 +43,19 @@ CONFIGS = [
 
 
 def config_args(overrides: dict):
+    """Build a default argument namespace with ``overrides`` applied.
+
+    Parameters
+    ----------
+    overrides : dict
+        Attribute names and values to set on the parsed namespace.
+
+    Returns
+    -------
+    argparse.Namespace
+        The experiment's default arguments, with a 24 h rollout stride and the
+        requested overrides.
+    """
     args = build_parser().parse_args([])
     args.ic_stride = 24
     for k, v in overrides.items():
@@ -51,7 +64,22 @@ def config_args(overrides: dict):
 
 
 def imbalance_z(data: dict):
-    """Single-column z-scored net-imbalance input per segment."""
+    """Build the single-column net-imbalance input for every segment.
+
+    The imbalance is the summed source flows minus the sink flow, referenced
+    to the operating point and standardised on the training segments.
+
+    Parameters
+    ----------
+    data : dict
+        Prepared data, using its ``train_raw`` / ``test_raw`` arrays.
+
+    Returns
+    -------
+    tuple
+        ``(train, test)``, each a list of ``(n_t, 1)`` z-scored arrays, one per
+        segment.
+    """
 
     def fluct(r):
         f = r["q"] - r["Cq"]
@@ -64,6 +92,7 @@ def imbalance_z(data: dict):
 
 
 def main() -> None:
+    """Score the input subsets (B2) and write the comparison table."""
     out = "outputs/wnts_B2"
     os.makedirs(out, exist_ok=True)
     results, eq_lines, rows = {}, [], []

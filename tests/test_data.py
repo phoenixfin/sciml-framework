@@ -1,3 +1,5 @@
+"""Tests for the GP function samplers and the interpolation helpers."""
+
 import numpy as np
 
 from sciml.data.gp import GPSampler, PeriodicGPSampler
@@ -5,6 +7,7 @@ from sciml.data.interp import interp_many, interp_to_grid
 
 
 def test_periodic_boundary_gap_small():
+    """The periodic GP sampler closes the gap between the two domain ends."""
     x = np.linspace(0, 10, 100, dtype=np.float32)
     s = PeriodicGPSampler(period=10.0, length_scale=2.0, amplitude=0.4, mean=1.0)
     np.random.seed(0)
@@ -14,12 +17,14 @@ def test_periodic_boundary_gap_small():
 
 
 def test_clipping_and_nonperiodic():
+    """``clip_min`` is respected, and the non-periodic sampler returns the right shape."""
     x = np.linspace(0, 10, 30, dtype=np.float32)
     assert PeriodicGPSampler(period=10.0, amplitude=2.0, clip_min=0.0).sample(x, 20).min() >= 0.0
     assert GPSampler(length_scale=1.0).sample(x, 3).shape == (3, 30)
 
 
 def test_interp():
+    """Grid interpolation is exact on a linear field and batches correctly."""
     out = interp_to_grid(np.array([0.5, 1.5]), np.array([0., 1., 2.]), np.array([0., 10., 20.]))
     assert np.allclose(out, [5., 15.]) and out.dtype == np.float32
     assert interp_many(np.linspace(0, 1, 9), np.linspace(0, 1, 5),

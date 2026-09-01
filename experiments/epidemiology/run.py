@@ -12,6 +12,7 @@ from sciml.problems.epidemiology.config import EpiConfig
 
 
 def main():
+    """Parse arguments, run the dengue pipeline, and print the fit RMSEs."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default=None)
     ap.add_argument("--out", default=None)

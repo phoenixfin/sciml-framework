@@ -9,14 +9,27 @@ from sciml.data.datasets import FunctionPairData, TimeSeriesData, list_datasets,
 
 
 def test_registry_lists_builtins():
+    """The three built-in loaders are registered on import."""
     names = list_datasets()
     assert "lti_demo" in names and "advection_pairs" in names and "wnts" in names
 
 
 def test_register_and_load_custom():
+    """A loader registered at runtime is loadable by name, with its arguments forwarded."""
     @register("unit_test_ds")
     def _loader(k: int = 3) -> TimeSeriesData:
-        """One tiny constant segment."""
+        """One tiny constant segment.
+
+        Parameters
+        ----------
+        k : int
+            Number of channels.
+
+        Returns
+        -------
+        TimeSeriesData
+            A single 10-sample segment of ones, with channels ``c0..c{k-1}``.
+        """
         return TimeSeriesData([np.ones((10, k))], [f"c{i}" for i in range(k)], 1.0)
 
     d = load("unit_test_ds", k=2)
@@ -24,11 +37,13 @@ def test_register_and_load_custom():
 
 
 def test_unknown_dataset_raises():
+    """Loading an unregistered name raises rather than returning None."""
     with pytest.raises(KeyError):
         load("no_such_dataset")
 
 
 def test_lti_demo_shapes():
+    """The demo dataset has the documented shape, and ``select`` keeps the data."""
     d = load("lti_demo", n_segments=2, seg_len=50, seed=1)
     assert d.n_segments == 2 and d.channels == ["x1", "x2", "u1", "u2"]
     assert all(s.shape == (50, 4) for s in d.segments)
@@ -38,18 +53,21 @@ def test_lti_demo_shapes():
 
 
 def test_lti_demo_is_deterministic():
+    """The same seed produces the same segments."""
     a = load("lti_demo", n_segments=1, seg_len=30, seed=7)
     b = load("lti_demo", n_segments=1, seg_len=30, seed=7)
     np.testing.assert_allclose(a.segments[0], b.segments[0])
 
 
 def test_select_unknown_channel_raises():
+    """Selecting a channel that does not exist raises."""
     d = load("lti_demo", n_segments=1, seg_len=30)
     with pytest.raises(KeyError):
         d.select(["nope"])
 
 
 def test_advection_pairs():
+    """The operator dataset preserves the spatial mean and splits by fraction."""
     d = load("advection_pairs", n_samples=8, grid=64, seed=2)
     assert d.n_samples == 8 and d.u.shape == d.s.shape == (8, 64)
     # The operator preserves the spatial mean (advection shifts, diffusion decays k!=0).
@@ -59,5 +77,6 @@ def test_advection_pairs():
 
 
 def test_function_pair_mismatch_raises():
+    """Mismatched u/s sample counts are rejected at construction."""
     with pytest.raises(ValueError):
         FunctionPairData(u=np.zeros((3, 4)), s=np.zeros((2, 4)))

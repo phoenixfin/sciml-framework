@@ -18,6 +18,8 @@ OUT = "outputs/examples"
 
 
 def main():
+    """Simulate predator-prey dynamics, identify both equations, and plot the phase
+    portrait against the SINDy rollout."""
     t = np.arange(0, 30, 0.01)
     X = simulate(lotka_volterra(), [10.0, 5.0], t)         # (n_t, 2)
 

@@ -13,6 +13,7 @@ from sciml.problems.swe.config import SWEConfig
 
 
 def main():
+    """Evaluate saved weights on cases C1-C3 and on unseen (h0, b) pairs."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default=None)
     ap.add_argument("--weights", default="outputs/swe/model.weights.h5")

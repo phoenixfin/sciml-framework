@@ -1,3 +1,5 @@
+"""Tests for the SWE, compartmental and moving-boundary wave solvers."""
+
 import numpy as np
 
 from sciml.problems.swe.cases import b_flat, h0_gaussian
@@ -7,6 +9,7 @@ from sciml.solvers.wave_fdm import wave_moving_boundary_fdm
 
 
 def test_swe_snapshots_and_mass():
+    """The SWE solver returns the requested snapshots, conserves mass and stays wet."""
     t_out = [0.25, 0.5, 0.75, 1.0]
     x, snaps = lax_friedrichs_swe(h0_gaussian, b_flat, nx=300, nt=3000, t_out=t_out)
     assert snaps["t"] == t_out and x.shape == (300,)
@@ -15,6 +18,7 @@ def test_swe_snapshots_and_mass():
 
 
 def test_rk4_exponential():
+    """RK4 integrates the exponential decay to fourth-order accuracy."""
     # y' = -y, y(0)=1 -> y(t)=exp(-t).
     t = np.linspace(0, 2, 401)
     y = rk4_integrate(lambda tt, yy: -yy, np.array([1.0]), t)[:, 0]
@@ -22,6 +26,7 @@ def test_rk4_exponential():
 
 
 def test_sir_simulation_conserves_population():
+    """The SIR simulation conserves the population and produces an outbreak."""
     sim = simulate_compartmental("SIR", N=1000, I0=10, n_weeks=100,
                                  beta_fn=lambda t: 0.3, gamma=0.1)
     total = sim["S"] + sim["I"] + sim["R"]
@@ -30,6 +35,7 @@ def test_sir_simulation_conserves_population():
 
 
 def test_wave_fdm_shapes():
+    """The moving-boundary solver returns matching grids, snapshots and times."""
     s_y = 0.16
     out = wave_moving_boundary_fdm(
         lambda tau: s_y + 0.05 * np.cos(np.asarray(tau)),

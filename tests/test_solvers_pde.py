@@ -1,3 +1,5 @@
+"""Tests for the transport, wave, KS and Darcy solvers."""
+
 import numpy as np
 
 from sciml.solvers.darcy import solve_darcy_2d
@@ -7,6 +9,7 @@ from sciml.solvers.wave1d import wave1d_dalembert
 
 
 def test_advection_full_period_returns_ic():
+    """Pure advection over one period returns the initial condition, with energy intact."""
     n = 128
     x = np.linspace(0, 1, n, endpoint=False)
     u0 = np.sin(2 * np.pi * x) + 0.5 * np.cos(6 * np.pi * x)
@@ -18,6 +21,7 @@ def test_advection_full_period_returns_ic():
 
 
 def test_wave1d_dalembert_initial_condition():
+    """The d'Alembert solution matches the IC at t=0 and stays within its amplitude."""
     f0 = lambda x: np.sin(2 * np.pi * x)
     x = np.linspace(0, 1, 50)
     assert np.allclose(wave1d_dalembert(f0, x, t=0.0, c=1.0, length=1.0), f0(x))
@@ -27,6 +31,7 @@ def test_wave1d_dalembert_initial_condition():
 
 
 def test_kuramoto_sivashinsky_bounded():
+    """The KS solution stays O(1) rather than blowing up."""
     data = kuramoto_sivashinsky(n=128, length=22.0, t_final=40.0, dt=0.25, n_save=80)
     u = data["u"]
     assert u.shape[1] == 128 and np.isfinite(u).all()
@@ -34,6 +39,7 @@ def test_kuramoto_sivashinsky_bounded():
 
 
 def test_darcy_manufactured_solution():
+    """Darcy solves a manufactured problem to second-order accuracy, and stays positive."""
     # a = 1 -> -laplacian(u) = f. Use u = sin(pi x) sin(pi y), f = 2 pi^2 u.
     m = 33
     xy = np.linspace(0, 1, m)

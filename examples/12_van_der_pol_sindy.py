@@ -18,6 +18,7 @@ OUT = "outputs/examples"
 
 
 def main():
+    """Simulate the Van der Pol oscillator, identify it, and plot the limit cycle."""
     mu = 1.5
     t = np.arange(0, 30, 0.01)
     X = simulate(van_der_pol(mu), [2.0, 0.0], t)

@@ -20,6 +20,8 @@ OUT = "outputs/examples"
 
 
 def main():
+    """Simulate Kuramoto-Sivashinsky, fit DMD to the snapshots, and plot the
+    reconstruction against the truth."""
     data = kuramoto_sivashinsky(n=128, length=22.0, t_final=150.0, dt=0.25, n_save=300)
     x, t, U = data["x"], data["t"], data["u"]            # U: (n_time, n_space)
 

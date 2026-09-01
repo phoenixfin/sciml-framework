@@ -8,6 +8,7 @@ tf = pytest.importorskip("tensorflow")
 
 # ---- DeepONet --------------------------------------------------------------
 def test_deeponet_operator_shapes():
+    """The generic operator contracts branches and trunk to (n_func, n_query)."""
     from sciml.methods.deeponet.operator import DeepONetOperator
     op = DeepONetOperator.create(n_sensors=20, n_branches=2, coord_dim=2,
                                 width=8, hidden=[16, 16])
@@ -16,6 +17,7 @@ def test_deeponet_operator_shapes():
 
 
 def test_swe_ic_shortcut_exact_at_t0():
+    """At t=0 the SWE model returns h0 (up to the positivity constant) and zero discharge."""
     from sciml.problems.swe.model import SWEDeepONet, warmup
     model = warmup(SWEDeepONet(n_sensors=20, width=8, hidden=(16, 16)), 20)
     n = 10
@@ -29,6 +31,7 @@ def test_swe_ic_shortcut_exact_at_t0():
 
 
 def test_grid_interp_matches_numpy():
+    """The TF grid interpolation matches the linear field it samples."""
     from sciml.tf_utils import grid_interp
     grid = np.linspace(0, 10, 50).astype(np.float32)[None, :]  # f(x)=x
     xq = np.array([0.0, 2.5, 7.3, 10.0], dtype=np.float32)
@@ -38,12 +41,14 @@ def test_grid_interp_matches_numpy():
 
 # ---- PINN ------------------------------------------------------------------
 def test_pinn_build_mlp_and_fourier():
+    """A Fourier-feature MLP builds and maps to the right output shape."""
     from sciml.methods.pinn.networks import build_mlp
     m = build_mlp(2, hidden=2, width=16, out_dim=1, fourier_freq=8)
     assert m(tf.zeros((5, 2))).shape == (5, 1)
 
 
 def test_derivatives_2d_on_known_field():
+    """The second derivatives are exact on a known quadratic field."""
     from sciml.methods.pinn.gradients import derivatives_2d
     # u = x^2 + 2 t^2  ->  u_xx = 2, u_tt = 4
     model = lambda xt, training=False: (xt[:, 0:1] ** 2 + 2.0 * xt[:, 1:2] ** 2)
@@ -55,6 +60,7 @@ def test_derivatives_2d_on_known_field():
 
 # ---- FNO -------------------------------------------------------------------
 def test_fno1d_shapes():
+    """The 1D FNO and its spectral layer preserve length and map channels."""
     from sciml.methods.fno import SpectralConv1D, build_fno1d
     model = build_fno1d(modes=8, width=16, n_layers=2, in_channels=2, out_channels=1)
     x = tf.random.normal((3, 64, 2))
@@ -64,6 +70,7 @@ def test_fno1d_shapes():
 
 
 def test_fno2d_shapes():
+    """The 2D FNO and its spectral layer preserve the grid and map channels."""
     from sciml.methods.fno import SpectralConv2D, build_fno2d
     model = build_fno2d(grid=16, modes=6, width=8, n_layers=2, in_channels=3, out_channels=1)
     assert model(tf.random.normal((2, 16, 16, 3))).shape == (2, 16, 16, 1)
@@ -72,6 +79,7 @@ def test_fno2d_shapes():
 
 # ---- Neural ODE ------------------------------------------------------------
 def test_neural_ode_shapes_and_fit_reduces_loss():
+    """The Neural ODE returns a (n_t, batch, dim) trajectory and its loss falls when fitted."""
     from sciml.methods.neuralode import NeuralODE, build_odefunc
     node = NeuralODE(build_odefunc(2, hidden=(16,)))
     y0 = tf.random.normal((5, 2))

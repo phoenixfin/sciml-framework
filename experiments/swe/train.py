@@ -7,13 +7,26 @@ from __future__ import annotations
 
 import argparse
 import os
+from typing import TYPE_CHECKING
 
 from sciml.core.plotting import set_paper_style
 from sciml.problems.swe import runners
 from sciml.problems.swe.config import SWEConfig
 
+if TYPE_CHECKING:  # annotations only
+    from sciml.methods.deeponet.trainer import History
 
-def plot_history(history, out_dir):
+
+def plot_history(history: "History", out_dir: str) -> None:
+    """Plot the loss components, gradient norm and total loss of a run.
+
+    Parameters
+    ----------
+    history : History
+        Training history; only its ``to_dict()`` view is used.
+    out_dir : str
+        Directory to write ``fig_losses.png`` into.
+    """
     import matplotlib.pyplot as plt
     set_paper_style()
     h = history.to_dict()
@@ -31,6 +44,7 @@ def plot_history(history, out_dir):
 
 
 def main():
+    """Train one SWE DeepONet variant and save its weights, history and figure."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default=None)
     ap.add_argument("--out", default="outputs/swe")

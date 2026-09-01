@@ -1,3 +1,5 @@
+"""Tests for the core metrics and Savitzky-Golay derivatives."""
+
 import numpy as np
 
 from sciml.core.derivatives import savgol, savgol_derivative
@@ -5,6 +7,7 @@ from sciml.core.metrics import abs_error, rel_l2, rel_l2_batch, rmse
 
 
 def test_rel_l2():
+    """The error metrics are zero on a perfect match and correctly shaped."""
     a = np.array([1., 2., 3.])
     assert rel_l2(a, a) < 1e-9
     assert abs(rel_l2(np.zeros(2), np.array([3., 4.])) - 1.0) < 1e-6
@@ -14,6 +17,7 @@ def test_rel_l2():
 
 
 def test_savgol_derivative_exact_on_polynomial():
+    """A cubic Savitzky-Golay filter differentiates a quadratic exactly."""
     # SG with poly>=2 differentiates a quadratic exactly.
     t = np.linspace(0, 4, 200)
     y = 2.0 + 3.0 * t + 0.5 * t ** 2          # y' = 3 + t
@@ -22,6 +26,7 @@ def test_savgol_derivative_exact_on_polynomial():
 
 
 def test_savgol_smoothing_reduces_noise():
+    """Smoothing moves a noisy signal closer to the clean one it came from."""
     t = np.linspace(0, 10, 400)
     clean = np.sin(t)
     np.random.seed(0)

@@ -20,6 +20,7 @@ OUT = "outputs/examples"
 
 
 def main():
+    """Train a DeepONet on advection-diffusion pairs and report its test error."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=800)
     ap.add_argument("--grid", type=int, default=128)

@@ -1,17 +1,30 @@
 #!/usr/bin/env python3
-"""
-prepare_sindy_data.py
-=====================
-Reprocess the Indonesian listed-firm financial-distress panel (2013-2023)
-into a clean, SINDy-ready dataset.
+"""Reprocess the financial-distress panel into a clean, SINDy-ready dataset.
 
-Input : datadrtpm0Rev1.xlsx  (sheet "2013-2023")   -- full-precision source
-Output: panel_clean.csv       cleaned panel, raw units, quality flags
-        panel_sindy_ready.csv asinh-transformed + standardised states
-        quality_log.csv       one row per repair, fully auditable
-        datadrtpm_clean.xlsx  all of the above in one workbook
+The panel is Indonesian listed firms, 2013-2023, one row per firm-year. The
+script loads the full-precision source workbook, repairs the four defects
+documented in ``DATA_REPORT.md`` (a duplicated firm block, a desynchronised
+corruption-index column, impossible proportions, negative cash ratios), derives
+the boundary variable the study is built around, and writes both the raw-unit
+panel and a transformed, standardised copy for SINDy.
 
-Every repair is (a) recorded in quality_log.csv and (b) reversible from the
+Input
+-----
+``datadrtpm0Rev1.xlsx`` (sheet ``"2013-2023"``) -- the full-precision source.
+Override with ``argv[1]`` or the ``FINDIST_SRC`` environment variable.
+
+Output (into ``argv[2]`` / ``FINDIST_OUT``, default: beside this script)
+------
+``panel_clean.csv``
+    Cleaned panel in raw units, with quality flags.
+``panel_sindy_ready.csv``
+    asinh-transformed and standardised states.
+``quality_log.csv``
+    One row per repair, fully auditable.
+``datadrtpm_clean.xlsx``
+    All of the above in one workbook, plus the transform metadata.
+
+Every repair is (a) recorded in ``quality_log.csv`` and (b) reversible from the
 source file. Nothing is silently overwritten.
 
 Author: prepared for A. F. Ihsan
@@ -20,6 +33,7 @@ Author: prepared for A. F. Ihsan
 import os
 import sys
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -85,7 +99,28 @@ STATE_VARS = [
 log_rows = []
 
 
-def log(code, share, year, column, old, new, reason):
+def log(code: str, share: str, year: Any, column: str,
+        old: Any, new: Any, reason: str) -> None:
+    """Record one repair in the quality log.
+
+    Parameters
+    ----------
+    code : str
+        Repair code, e.g. ``"X15_DESYNC"``; groups repairs of the same kind.
+    share : str
+        Share code of the firm affected, or a marker such as ``"(all firms)"``.
+    year : Any
+        Firm-year affected (int), or a range string for panel-wide repairs.
+    column : str
+        Column repaired, or ``"(entire row)"`` for a dropped row.
+    old : Any
+        Value (or description of the state) before the repair.
+    new : Any
+        Value written in its place.
+    reason : str
+        Why the original value cannot be right, and what would be needed to
+        recover it from the source documents.
+    """
     log_rows.append(dict(repair_code=code, share_code=share, year=year,
                          column=column, old_value=old, new_value=new,
                          reason=reason))

@@ -80,14 +80,42 @@ SegData = Tuple[np.ndarray, Optional[np.ndarray], np.ndarray]
 # generic helpers
 # --------------------------------------------------------------------------
 def r2_per_column(Y: np.ndarray, Yhat: np.ndarray) -> np.ndarray:
-    """Coefficient of determination per column."""
+    """Coefficient of determination per column.
+
+    Parameters
+    ----------
+    Y : np.ndarray
+        Targets, ``(n, d)``.
+    Yhat : np.ndarray
+        Predictions, same shape as ``Y``.
+
+    Returns
+    -------
+    np.ndarray
+        R^2 per column, ``(d,)``. Columns with zero variance score 1.0 rather
+        than dividing by zero.
+    """
     ss_res = np.sum((Y - Yhat) ** 2, axis=0)
     ss_tot = np.sum((Y - Y.mean(axis=0)) ** 2, axis=0)
     return 1.0 - ss_res / np.where(ss_tot == 0, 1.0, ss_tot)
 
 
 def interp_u(U: np.ndarray, dt: float) -> Callable[[float], np.ndarray]:
-    """Linear interpolant of the input matrix ``U`` sampled every ``dt`` h."""
+    """Linear interpolant of the input matrix ``U`` sampled every ``dt`` h.
+
+    Parameters
+    ----------
+    U : np.ndarray
+        Input trajectory, ``(n_t, n_u)``.
+    dt : float
+        Sampling interval [h].
+
+    Returns
+    -------
+    Callable[[float], np.ndarray]
+        ``u(t)`` returning ``(n_u,)``, clamped to the end values outside the
+        sampled window.
+    """
     tt = np.arange(len(U), dtype=float) * dt
     return lambda t: np.array([np.interp(t, tt, U[:, j]) for j in range(U.shape[1])])
 
@@ -103,8 +131,28 @@ def rollout(
 ) -> Tuple[np.ndarray, bool]:
     """Integrate the identified model with a divergence guard.
 
-    Returns ``(X, diverged)``: trajectory ``(n_steps + 1, d)`` in z-units
-    (NaN after a blow-up) and whether the guard tripped.
+    Parameters
+    ----------
+    f : Callable[[float, np.ndarray], np.ndarray]
+        Right-hand side ``f(t, x)`` in z-units.
+    x0 : np.ndarray
+        Initial state, ``(d,)``.
+    n_steps : int
+        Number of steps to take.
+    t0 : float
+        Time of the initial state [h], used to index the input interpolant.
+    dt : float
+        Step size [h].
+    integrator : str
+        ``"euler"`` (consistent with discrete-mode fitting) or RK4 otherwise.
+    blowup : float
+        Abort once any state exceeds this magnitude in z-units.
+
+    Returns
+    -------
+    Tuple[np.ndarray, bool]
+        ``(X, diverged)``: the trajectory ``(n_steps + 1, d)``, NaN after a
+        blow-up, and whether the guard tripped.
     """
     x = np.asarray(x0, dtype=float).copy()
     X = np.full((n_steps + 1, len(x)), np.nan)
@@ -129,7 +177,27 @@ def rollout(
 # model specification
 # --------------------------------------------------------------------------
 class ModelSpec:
-    """One identification experiment: state/input choice + fitted SINDy."""
+    """One identification experiment: state/input choice + fitted SINDy.
+
+    Parameters
+    ----------
+    key : str
+        Short identifier, e.g. ``"sindyc_red"``; also selects the state/input
+        assembly in :func:`seg_data`.
+    label : str
+        Human-readable label used in tables and figures.
+    state_names : List[str]
+        Names of the state channels, in column order.
+    input_names : List[str]
+        Names of the exogenous input channels; empty for autonomous SINDy.
+    clip : float
+        Saturate library inputs at this magnitude in z-units so polynomial
+        features stay inside their calibrated range. 0 disables clipping.
+    n_pressure : Optional[int]
+        How many leading state columns are pressures, i.e. how many carry
+        reported metrics. Defaults to the count of names starting with ``p``,
+        which excludes latent states such as the line-pack.
+    """
 
     def __init__(
         self,
@@ -156,6 +224,13 @@ class ModelSpec:
 
     @property
     def var_names(self) -> List[str]:
+        """Library column names: the state names followed by the input names.
+
+        Returns
+        -------
+        List[str]
+            Names of the augmented feature matrix's columns, in order.
+        """
         return self.state_names + self.input_names
 
     def _aug(self, Zs: np.ndarray, Zu: Optional[np.ndarray]) -> np.ndarray:
@@ -169,11 +244,28 @@ class ModelSpec:
     def _pairs(
         self, seg_data: List[SegData], fit_mode: str, dt: float, window: int
     ) -> Tuple[np.ndarray, np.ndarray]:
-        """Stacked (features, targets) over segments for the chosen mode.
+        """Stack (features, targets) over segments for the chosen mode.
 
         Features are the (centred) fluctuation states; targets are
         increments of the *absolute* states, matching what a rollout in a
         frozen operating-point frame accumulates.
+
+        Parameters
+        ----------
+        seg_data : List[SegData]
+            Per-segment ``(fluctuation states, inputs, absolute states)``.
+        fit_mode : str
+            ``"discrete"`` or ``"savgol"``.
+        dt : float
+            Sampling interval [h].
+        window : int
+            Savitzky-Golay window, used only by the ``"savgol"`` mode.
+
+        Returns
+        -------
+        Tuple[np.ndarray, np.ndarray]
+            Features ``(n, d_state + d_input)`` and targets ``(n, d_state)``,
+            stacked over all segments.
         """
         Xs, Ys = [], []
         for Zs, Zu, Zabs in seg_data:
@@ -203,8 +295,35 @@ class ModelSpec:
         threshold: float,
         alpha: float,
         degree: int,
-        library=None,
+        library: "object" = None,
     ) -> "ModelSpec":
+        """Fit the sparse model on the stacked segment pairs.
+
+        Parameters
+        ----------
+        seg_data : List[SegData]
+            Per-segment ``(fluctuation states, inputs, absolute states)``.
+        fit_mode : str
+            ``"discrete"`` for forward-difference targets, ``"savgol"`` for
+            Savitzky-Golay time derivatives.
+        dt : float
+            Sampling interval [h].
+        window : int
+            Savitzky-Golay window, used only by the ``"savgol"`` mode.
+        threshold : float
+            STRidge sparsity threshold.
+        alpha : float
+            Ridge regularisation strength.
+        degree : int
+            Polynomial degree, used when ``library`` is None.
+        library : object
+            Explicit feature library; overrides ``degree`` when given.
+
+        Returns
+        -------
+        ModelSpec
+            ``self``, so fitting can be chained onto construction.
+        """
         X, Y = self._pairs(seg_data, fit_mode, dt, window)
         lib = library if library is not None else PolynomialLibrary(degree=degree)
         self.model = SINDy(lib, threshold=threshold, alpha=alpha).fit(
@@ -215,16 +334,56 @@ class ModelSpec:
     def r2_pressures(
         self, seg_data: List[SegData], fit_mode: str, dt: float, window: int
     ) -> np.ndarray:
+        """One-step R^2 on the pressure states, per column.
+
+        Parameters
+        ----------
+        seg_data : List[SegData]
+            Segments to score, usually the held-out ones.
+        fit_mode : str
+            Same mode the model was fitted with.
+        dt : float
+            Sampling interval [h].
+        window : int
+            Savitzky-Golay window for the ``"savgol"`` mode.
+
+        Returns
+        -------
+        np.ndarray
+            R^2 for each of the leading ``n_p`` pressure equations. Latent
+            states such as the line-pack are excluded.
+        """
         X, Y = self._pairs(seg_data, fit_mode, dt, window)
         return r2_per_column(Y, self.model.predict(X))[: self.n_p]
 
     def rhs(self, u_of_t: Optional[Callable[[float], np.ndarray]]):
+        """Wrap the identified model as a right-hand side for the integrator.
+
+        Parameters
+        ----------
+        u_of_t : Optional[Callable[[float], np.ndarray]]
+            Input interpolant. Ignored for autonomous models; required when
+            the spec has inputs.
+
+        Returns
+        -------
+        Callable[[float, np.ndarray], np.ndarray]
+            ``f(t, x)`` returning the state derivative, evaluating the inputs
+            at ``t`` when the model has them.
+        """
         if not self.input_names:
             return lambda t, x: self.model.predict(x[None, :])[0]
         return lambda t, x: self.model.predict(np.concatenate([x, u_of_t(t)])[None, :])[0]
 
     def coef_dict(self) -> Dict[str, Dict[str, float]]:
-        """Non-zero identified coefficients per state equation."""
+        """Non-zero identified coefficients per state equation.
+
+        Returns
+        -------
+        Dict[str, Dict[str, float]]
+            State name -> ``{library term: coefficient}``, omitting terms the
+            sparsity threshold removed.
+        """
         names = self.model.feature_names_
         coef = self.model.coef_
         return {
@@ -252,6 +411,31 @@ def rollout_metrics(
     (operating point held at its value at the IC), so causal centering
     stays causal over the horizon. NRMSE is over the pressure states,
     normalized per column by the pooled test fluctuation std.
+
+    Parameters
+    ----------
+    spec : ModelSpec
+        Fitted spec to roll out.
+    seg_data : List[SegData]
+        Segments to forecast on, usually the held-out ones.
+    dt : float
+        Sampling interval [h].
+    integrator : str
+        ``"euler"`` or RK4, matching the fitting mode.
+    stride_h : int
+        Hours between successive forecast start points.
+    blowup : float
+        Divergence guard, in z-units.
+    warmup_h : float
+        Hours skipped at the start of each segment before forecasting.
+    horizons_h : Optional[List[int]]
+        Forecast horizons in hours. Defaults to ``HORIZONS_H``.
+
+    Returns
+    -------
+    dict
+        ``n_rollouts`` and, per horizon, the median NRMSE and the fraction of
+        rollouts that diverged.
     """
     horizons_h = horizons_h or HORIZONS_H
     n_p = spec.n_p
@@ -310,8 +494,27 @@ def baseline_metrics(
 
     ``persistence`` holds the state at the IC; ``climatology`` predicts
     the operating point (zero in the frozen frame); ``daily_repeat``
-    repeats the preceding 24 h pattern. ``seg_pairs`` holds
-    ``(Z_fluct, Z_abs)`` per test segment.
+    repeats the preceding 24 h pattern.
+
+    Parameters
+    ----------
+    seg_pairs : List[Tuple[np.ndarray, np.ndarray]]
+        ``(Z_fluct, Z_abs)`` per test segment.
+    dt : float
+        Sampling interval [h].
+    stride_h : int
+        Hours between successive forecast start points.
+    warmup_h : float
+        Hours skipped at the start of each segment; at least 24 h, since
+        ``daily_repeat`` needs a preceding day.
+    horizons_h : Optional[List[int]]
+        Forecast horizons in hours. Defaults to ``HORIZONS_H``.
+
+    Returns
+    -------
+    dict
+        Baseline name -> horizon -> median NRMSE, on the same protocol as
+        :func:`rollout_metrics` so the two are directly comparable.
     """
     horizons_h = horizons_h or HORIZONS_H
     cps = {h: max(1, int(round(h / dt))) for h in horizons_h}
@@ -349,12 +552,28 @@ def baseline_metrics(
 # --------------------------------------------------------------------------
 # data preparation
 # --------------------------------------------------------------------------
-def prepare_data(args) -> dict:
+def prepare_data(args: "argparse.Namespace") -> dict:
     """Load, clean, split, centre and scale the WNTS data.
 
-    Returns a dict with the segment DataFrames, raw per-segment arrays
-    (``P, q, CP, Cq, L``), fitted scalers, per-segment z-arrays for the
-    standard model specs, and protocol constants.
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Settings from :func:`build_parser`: data directory, years, split,
+        centering, operating-point window, smoothing and sampling interval.
+
+    Returns
+    -------
+    dict
+        The segment DataFrames, raw per-segment arrays (``P, q, CP, Cq, L``),
+        fitted scalers, per-segment z-arrays for the standard model specs, and
+        the protocol constants (``dt``, ``integrator``, ``warmup_h``,
+        ``bias``).
+
+    Raises
+    ------
+    RuntimeError
+        If no usable train/test segments remain, or if none survive the
+        operating-point spin-up trim.
     """
     dt = float(args.dt_hours)
 
@@ -421,9 +640,9 @@ def prepare_data(args) -> dict:
     if not train_raw or not test_raw:
         raise RuntimeError("No segments survive the operating-point spin-up trim.")
 
+    # collapse the 4 collinear source pressures into one upstream pool
+    # pressure; keep the ORF (delivery) pressure
     def reduce_P(P: np.ndarray) -> np.ndarray:
-        """Collapse the 4 collinear source pressures into one upstream
-        pool pressure; keep the ORF (delivery) pressure."""
         return np.column_stack([P[:, :4].mean(axis=1), P[:, 4]])
 
     sc = {
@@ -469,7 +688,27 @@ def prepare_data(args) -> dict:
 
 
 def seg_data(zsegs: List[dict], key: str) -> List[SegData]:
-    """Assemble (state, input, absolute-state) triples for a model key."""
+    """Assemble ``(state, input, absolute-state)`` triples for a model key.
+
+    Parameters
+    ----------
+    zsegs : List[dict]
+        Per-segment z-arrays from :func:`prepare_data`.
+    key : str
+        Model key: one of ``sindy_P``, ``sindy_Pq``, ``sindyc``, ``sindyc_L``,
+        ``sindyc_red``, ``sindyc_redL``.
+
+    Returns
+    -------
+    List[SegData]
+        One triple per segment. The input entry is ``None`` for the autonomous
+        models.
+
+    Raises
+    ------
+    KeyError
+        If ``key`` is not one of the six model forms.
+    """
     out = []
     for z in zsegs:
         if key == "sindy_P":
@@ -490,7 +729,20 @@ def seg_data(zsegs: List[dict], key: str) -> List[SegData]:
 
 
 def default_specs(clip: float) -> List[ModelSpec]:
-    """The standard six-model ladder."""
+    """Build the standard six-model ladder.
+
+    Parameters
+    ----------
+    clip : float
+        Library saturation level in z-units, applied to every spec.
+
+    Returns
+    -------
+    List[ModelSpec]
+        The ladder in increasing order of physical honesty, from autonomous
+        SINDy on pressures to the reduced SINDYc with a latent line-pack
+        state.
+    """
     return [
         ModelSpec("sindy_P", "SINDy (states: P)", P_NAMES, [], clip=clip),
         ModelSpec("sindy_Pq", "SINDy (states: P, q)", P_NAMES + Q_NAMES, [], clip=clip),
@@ -515,8 +767,25 @@ def default_specs(clip: float) -> List[ModelSpec]:
     ]
 
 
-def evaluate_spec(spec: ModelSpec, data: dict, args) -> dict:
-    """Fit one spec on the training segments and evaluate everything."""
+def evaluate_spec(spec: ModelSpec, data: dict, args: "argparse.Namespace") -> dict:
+    """Fit one spec on the training segments and evaluate it on the test ones.
+
+    Parameters
+    ----------
+    spec : ModelSpec
+        Spec to fit; mutated in place by the fit.
+    data : dict
+        Prepared data from :func:`prepare_data`.
+    args : argparse.Namespace
+        Protocol settings (fit mode, window, threshold, alpha, degree, rollout
+        stride and blow-up guard).
+
+    Returns
+    -------
+    dict
+        Train and test R^2, the rollout metrics, and the identified
+        coefficients.
+    """
     d_tr = seg_data(data["train_z"], spec.key)
     d_te = seg_data(data["test_z"], spec.key)
     spec.fit(
@@ -554,6 +823,18 @@ def evaluate_spec(spec: ModelSpec, data: dict, args) -> dict:
 # experiment driver
 # --------------------------------------------------------------------------
 def build_parser() -> argparse.ArgumentParser:
+    """Build the shared command-line parser for the WNTS experiments.
+
+    Every script in this package starts from this parser — either parsing the
+    real command line or taking ``parse_args([])`` as a defaults namespace — so
+    the protocol constants stay identical across the study.
+
+    Returns
+    -------
+    argparse.ArgumentParser
+        Parser covering the data source, split, centering, fitting mode,
+        library and rollout settings.
+    """
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--data-dir", default="D:/repository/wnts_hourly")
     ap.add_argument("--years", type=int, nargs="+", default=[2019])
@@ -598,8 +879,20 @@ def build_parser() -> argparse.ArgumentParser:
     return ap
 
 
-def run_experiment(args) -> dict:
-    """Run the full ladder + baselines; write outputs; return the summary."""
+def run_experiment(args: "argparse.Namespace") -> dict:
+    """Run the full ladder and baselines, write the outputs, return the summary.
+
+    Parameters
+    ----------
+    args : argparse.Namespace
+        Settings from :func:`build_parser`.
+
+    Returns
+    -------
+    dict
+        Per-model metrics, baseline metrics and the run configuration — the
+        same structure written to ``summary.json`` in ``args.out``.
+    """
     os.makedirs(args.out, exist_ok=True)
     data = prepare_data(args)
     dt = data["dt"]
@@ -662,8 +955,23 @@ def run_experiment(args) -> dict:
     return result
 
 
-def make_figures(specs, data, base, summary, args) -> None:
-    """Example-forecast, R^2 bar and horizon-skill figures."""
+def make_figures(specs: List[ModelSpec], data: dict, base: dict, summary: dict,
+                 args: "argparse.Namespace") -> None:
+    """Write the example-forecast, R^2 bar and horizon-skill figures.
+
+    Parameters
+    ----------
+    specs : List[ModelSpec]
+        The fitted ladder.
+    data : dict
+        Prepared data from :func:`prepare_data`.
+    base : dict
+        Baseline metrics from :func:`baseline_metrics`.
+    summary : dict
+        Per-model metrics, as assembled by :func:`run_experiment`.
+    args : argparse.Namespace
+        Settings; the output directory and figure horizon are read from it.
+    """
     set_paper_style(font_size=10)
     import matplotlib
 
@@ -766,6 +1074,7 @@ def make_figures(specs, data, base, summary, args) -> None:
 
 
 def main() -> None:
+    """Run the six-model ladder with the settings given on the command line."""
     run_experiment(build_parser().parse_args())
 
 

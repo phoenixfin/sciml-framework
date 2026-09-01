@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import os
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -18,8 +19,34 @@ from sciml.methods.deeponet.trainer import Trainer
 from sciml.problems.swe import runners
 from sciml.problems.swe.config import SWEConfig
 
+if TYPE_CHECKING:  # annotations only
+    import tensorflow as tf
 
-def evaluate_pairs(prob, model, H0_test, B_test, n_pairs=25):
+    from sciml.problems.swe.problem import SWEProblem
+
+
+def evaluate_pairs(prob: "SWEProblem", model: "tf.keras.Model", H0_test: np.ndarray,
+                   B_test: np.ndarray, n_pairs: int = 25) -> tuple:
+    """Mean error over held-out ``(h0, b)`` pairs at the final time.
+
+    Parameters
+    ----------
+    prob : SWEProblem
+        Problem providing the reference solver and prediction helpers.
+    model : tf.keras.Model
+        Trained operator.
+    H0_test : np.ndarray
+        Held-out initial-depth profiles at the sensors, ``(n_pairs, m)``.
+    B_test : np.ndarray
+        Held-out bathymetry profiles at the sensors, ``(n_pairs, m)``.
+    n_pairs : int
+        How many of the held-out pairs to score.
+
+    Returns
+    -------
+    tuple
+        ``(eps_h, eps_hu)``, each the mean relative L2 error over the pairs.
+    """
     eh, ehu, xq = [], [], np.linspace(0, prob.L, 100)
     for k in range(n_pairs):
         h0k = lambda x, k=k: np.interp(x, prob.x_sensors, H0_test[k])
@@ -32,6 +59,7 @@ def evaluate_pairs(prob, model, H0_test, B_test, n_pairs=25):
 
 
 def main():
+    """Sweep the supervised sample count over several seeds and plot the curve."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default=None)
     ap.add_argument("--nd", type=int, nargs="+", default=[10, 25, 50, 100, 150])

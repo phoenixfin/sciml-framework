@@ -21,7 +21,33 @@ from sciml.solvers.burgers import burgers_dataset
 OUT = "outputs/examples"
 
 
-def make_dataset(n, grid, nu, t_final, nt, length=1.0, seed=0):
+def make_dataset(n: int, grid: int, nu: float, t_final: float, nt: int,
+                 length: float = 1.0, seed: int = 0) -> tuple:
+    """Sample smooth initial conditions and solve Burgers' equation on each.
+
+    Parameters
+    ----------
+    n : int
+        Number of function pairs.
+    grid : int
+        Points in the periodic spatial grid.
+    nu : float
+        Viscosity.
+    t_final : float
+        Time the operator maps to.
+    nt : int
+        Timesteps the reference solver takes to reach ``t_final``.
+    length : float
+        Domain length (the GP sampler's period).
+    seed : int
+        Seed for the initial-condition sampler.
+
+    Returns
+    -------
+    tuple
+        ``(xs, X, Y)``: the grid ``(grid,)``, inputs ``(n, grid, 2)`` stacking
+        ``u(.,0)`` with the coordinate channel, and targets ``(n, grid, 1)``.
+    """
     rng = np.random.default_rng(seed)
     xs = np.linspace(0, length, grid, endpoint=False, dtype=np.float32)
     sampler = PeriodicGPSampler(period=length, length_scale=0.15, amplitude=1.0, mean=0.0)
@@ -33,6 +59,7 @@ def make_dataset(n, grid, nu, t_final, nt, length=1.0, seed=0):
 
 
 def main():
+    """Train the FNO on Burgers pairs and report the mean relative L2 error."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=600)
     ap.add_argument("--grid", type=int, default=128)

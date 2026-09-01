@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import os
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -17,12 +18,50 @@ from sciml.problems.swe import cases as swe_cases
 from sciml.problems.swe import runners
 from sciml.problems.swe.config import SWEConfig
 
+if TYPE_CHECKING:  # annotations only
+    import tensorflow as tf
 
-def _opt(cfg):
+    from sciml.problems.swe.problem import SWEProblem
+
+
+def _opt(cfg: "SWEConfig"):
+    """Build the optimizer from a config's training block.
+
+    Parameters
+    ----------
+    cfg : SWEConfig
+        Configuration whose ``train`` block sets the schedule.
+
+    Returns
+    -------
+    tf.keras.optimizers.Optimizer
+        Adam with the configured exponential decay.
+    """
     return make_optimizer(cfg.train.lr, cfg.train.lr_decay_steps, cfg.train.lr_decay_rate)
 
 
-def beta_norm(model, h0s, bs):
+def beta_norm(model: "tf.keras.Model", h0s: "tf.Tensor", bs: "tf.Tensor") -> float:
+    """Mean branch-coefficient norm, averaged over a batch of sensor profiles.
+
+    A collapsed variant drives its coefficients towards zero, so this is the
+    quantity that distinguishes "learnt nothing" from "learnt something wrong".
+
+    Parameters
+    ----------
+    model : tf.keras.Model
+        Either the shared-branch variant (which exposes ``b1`` / ``b2``) or the
+        full model (which exposes ``h_op`` / ``hu_op``).
+    h0s : tf.Tensor
+        Initial depth at the sensors, ``(N, m)``.
+    bs : tf.Tensor
+        Bathymetry at the sensors, ``(N, m)``.
+
+    Returns
+    -------
+    float
+        Mean over the batch of ``||beta||``, averaged over the two heads when
+        the model has separate ones.
+    """
     import tensorflow as tf
     if hasattr(model, "b1"):
         return float(tf.reduce_mean(tf.norm(model.b1(h0s) + model.b2(bs), axis=1)))
@@ -31,7 +70,23 @@ def beta_norm(model, h0s, bs):
     return float(tf.reduce_mean((tf.norm(bh, axis=1) + tf.norm(bhu, axis=1)) / 2))
 
 
-def eval_c1(prob, model):
+def eval_c1(prob: "SWEProblem", model: "tf.keras.Model") -> tuple:
+    """Score a variant on benchmark C1 and test whether it collapsed to h0.
+
+    Parameters
+    ----------
+    prob : SWEProblem
+        Problem holding the reference solver and the prediction helpers.
+    model : tf.keras.Model
+        Trained variant.
+
+    Returns
+    -------
+    tuple
+        ``(eps_h, eps_hu, collapsed)``: the two relative L2 errors at the final
+        time, and whether the depth field stayed within 0.02 m of the initial
+        condition everywhere — the signature of the F = 0 attractor.
+    """
     xs, _, h, hu = prob.predict_grid(model, swe_cases.h0_gaussian, swe_cases.b_flat)
     x_ref, snaps = prob.reference(swe_cases.h0_gaussian, swe_cases.b_flat)
     eh = rel_l2(h[-1], np.interp(xs, x_ref, snaps["h"][-1]))
@@ -40,7 +95,26 @@ def eval_c1(prob, model):
     return eh, ehu, collapsed
 
 
-def train_variant(prob, cfg, variant, steps):
+def train_variant(prob: "SWEProblem", cfg: "SWEConfig", variant: str, steps: int):
+    """Train one architecture variant from scratch.
+
+    Parameters
+    ----------
+    prob : SWEProblem
+        Problem providing the model builder, step function and batch sampler.
+    cfg : SWEConfig
+        Configuration supplying the optimizer schedule.
+    variant : str
+        ``"full"``, ``"shared_branch"`` or ``"no_ic_shortcut"``.
+    steps : int
+        Optimisation steps; matched across variants so the comparison is at a
+        common budget.
+
+    Returns
+    -------
+    tf.keras.Model
+        The trained variant.
+    """
     model = prob.build_model(variant)
     opt = _opt(cfg)
     step = prob.make_step(model, opt, variant=variant)
@@ -50,6 +124,7 @@ def train_variant(prob, cfg, variant, steps):
 
 
 def main():
+    """Train A1 and A2, score them against A3, and write ``ablation.json``."""
     import tensorflow as tf
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default=None)

@@ -69,6 +69,19 @@ CONFIGS = [
 
 
 def config_args(overrides: dict):
+    """Build a default argument namespace with ``overrides`` applied.
+
+    Parameters
+    ----------
+    overrides : dict
+        Attribute names and values to set on the parsed namespace.
+
+    Returns
+    -------
+    argparse.Namespace
+        The experiment's default arguments, with a 24 h rollout stride and the
+        requested overrides.
+    """
     args = build_parser().parse_args([])
     args.ic_stride = 24
     for k, v in overrides.items():
@@ -77,6 +90,7 @@ def config_args(overrides: dict):
 
 
 def main() -> None:
+    """Score the candidate libraries (B1) and write the comparison table."""
     out = "outputs/wnts_B1"
     os.makedirs(out, exist_ok=True)
     results, eq_lines, rows = {}, [], []

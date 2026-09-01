@@ -18,6 +18,7 @@ OUT = "outputs/examples"
 
 
 def main():
+    """Simulate exponential decay, identify ``dx/dt = -k x``, and plot the fit."""
     k_true = 0.7
     t = np.arange(0, 8, 0.05)
     X = simulate(linear_decay(k_true), [2.0], t)            # (n_t, 1)

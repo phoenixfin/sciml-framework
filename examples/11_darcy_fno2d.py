@@ -20,6 +20,7 @@ OUT = "outputs/examples"
 
 
 def main():
+    """Train a 2D FNO on Darcy-flow pairs and report the mean relative L2 error."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--n", type=int, default=300)
     ap.add_argument("--grid", type=int, default=29)

@@ -19,6 +19,7 @@ from sciml.problems.swe.physics import make_pi_step
 
 
 def main():
+    """Train with the PDE residual alone and measure the drift towards F = 0."""
     import tensorflow as tf
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default=None)
