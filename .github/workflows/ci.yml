@@ -24,11 +24,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
       - name: Ruff (lint + import order)
-        run: ruff check src experiments examples tests
+        run: ruff check .
       - name: pydoclint (docstring completeness)
-        run: pydoclint src
+        run: pydoclint src examples experiments tests notebooks
       - name: interrogate (docstring coverage 100%)
-        run: interrogate src
+        run: interrogate src examples experiments tests notebooks
       - name: Byte-compile (syntax, incl. TF-only modules)
         run: python -m compileall -q src
       - name: pytest (numpy tests; TF tests skip)

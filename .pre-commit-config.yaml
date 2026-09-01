@@ -25,15 +25,15 @@ repos:
         entry: pydoclint
         language: python
         additional_dependencies: ["pydoclint>=0.4"]
-        files: ^src/
+        files: ^(src|examples|experiments|tests|notebooks)/.*\.py$
         pass_filenames: false
-        args: ["src"]
+        args: ["src", "examples", "experiments", "tests", "notebooks"]
 
       - id: interrogate
         name: interrogate (docstring coverage 100%)
         entry: interrogate
         language: python
         additional_dependencies: ["interrogate>=1.5"]
-        files: ^src/
+        files: ^(src|examples|experiments|tests|notebooks)/.*\.py$
         pass_filenames: false
-        args: ["src"]
+        args: ["src", "examples", "experiments", "tests", "notebooks"]

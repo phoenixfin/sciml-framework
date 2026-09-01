@@ -33,3 +33,7 @@ ckpt_*/
 # Test / cache
 .pytest_cache/
 .mypy_cache/
+.ruff_cache/
+
+# Generated API reference (pdoc; see docs/reference.md)
+site/
