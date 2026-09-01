@@ -42,7 +42,12 @@ not forking the repo.
 Full docs (with flowcharts) live in [`docs/`](docs/README.md):
 [overview](docs/overview.md) · [architecture](docs/architecture.md) ·
 [methods](docs/methods.md) · [problems](docs/problems.md) ·
-[extending](docs/extending.md) · [reference](docs/reference.md).
+[datasets](docs/datasets.md) · [extending](docs/extending.md) ·
+[reference](docs/reference.md).
+
+Where to run things: [examples gallery](examples/README.md) ·
+[experiment scripts](experiments/README.md) ·
+[research studies](notebooks/README.md).
 
 ---
 
@@ -74,12 +79,19 @@ src/sciml/
     epidemiology/   SINDy on dengue β(t)        (config, reconstruction, estimators, problem, runners)
   cli.py       `sciml {swe,wave,dengue,datasets,sysid}`
 configs/       swe.yaml, wave_obstacle.yaml, dengue.yaml (+ JSON also supported)
-experiments/   swe/{train,evaluate,ablation,nd_scaling,physics_attractor}, wave_obstacle/run,
-               epidemiology/run, wnts/ (gas-network SINDYc study -- see its REPORT.md)
-notebooks/
-  pi_deeponet_swe/  audit of the SWE study: one combined Kaggle notebook, a
+experiments/   scripted studies over the framework -- see experiments/README.md
+  swe/            train, evaluate, ablation, nd_scaling, physics_attractor
+  wave_obstacle/  run          epidemiology/  run
+  wnts/           gas-network SINDYc study (confidential data) -- see its REPORT.md
+notebooks/     open research, one directory per study -- see notebooks/README.md
+  pi_deeponet_swe/  audit of the SWE study: a combined Kaggle notebook, a
                     well-balanced HLL solver, a port of the v6 pipeline, and
                     RESULTS.md -- see below                     (numpy + TensorFlow)
+  pinn_boussinesq/  PINN on the dispersive Boussinesq (VBM) system: five run-up
+                    benchmarks, an exact Carrier-Greenspan reference   (TensorFlow)
+  financialdist/    corporate distress as a first-passage problem: pre-registered
+                    design, cleaned panel, a negative result done properly  (numpy)
+  sindy/            dengue structure discovery from case counts alone     (numpy)
 tests/         numpy tests (always run) + TF-guarded tests (skip without TF)
 ```
 
@@ -337,12 +349,21 @@ The method engines and `core`/`data`/`solvers` are reused as-is.
 
 ---
 
-## Tests
+## Tests and gates
 
 ```bash
 pip install -e ".[dev]"
 pytest        # numpy + SINDy tests always run; TF tests skip when tensorflow is absent
+
+ruff check .                                            # lint + import order
+interrogate src examples experiments tests notebooks    # docstring coverage, 100%
+pydoclint   src examples experiments tests notebooks    # docstring completeness
 ```
+
+All three run in CI and as pre-commit hooks, over every Python file in the
+repository — package, examples, experiments, tests, and the modules extracted
+out of the research notebooks. Notebook cells themselves are excluded on
+purpose. See [docs/reference.md](docs/reference.md) for the conventions.
 
 ## Provenance
 

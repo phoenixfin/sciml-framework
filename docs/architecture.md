@@ -83,9 +83,11 @@ src/sciml/
     └── epidemiology/      # config · reconstruction · estimators · problem · runners
 
 configs/       swe.yaml · wave_obstacle.yaml · dengue.yaml (+ JSON)
-experiments/   swe/{train,evaluate,ablation,nd_scaling,physics_attractor} · wave_obstacle · epidemiology
-notebooks/     pi_deeponet_swe/ — audit of the SWE study: well-balanced solvers,
-               a port of the source pipeline, RESULTS.md, build_report.py
+experiments/   swe/{train,evaluate,ablation,nd_scaling,physics_attractor} · wave_obstacle ·
+               epidemiology · wnts (gas-network SINDYc study) — see experiments/README.md
+notebooks/     four research studies, each with its own README:
+               pi_deeponet_swe (SWE audit) · pinn_boussinesq (dispersive PINN) ·
+               financialdist (panel SINDy) · sindy (dengue structure discovery)
 examples/      01–13 graded gallery
 tests/         numpy tests (always run) + TF-guarded tests
 docs/          this documentation

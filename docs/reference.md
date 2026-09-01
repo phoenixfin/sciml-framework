@@ -50,17 +50,30 @@ def rel_l2(pred: np.ndarray, ref: np.ndarray, eps: float = 1e-10) -> float:
 ```
 
 Config dataclass fields are documented with inline `#:` comments instead of an
-`Attributes` block.
+`Attributes` block. Nested closures carry a one-line comment above the `def`
+rather than a docstring — a full NumPy block on a three-line helper is noise,
+and both docstring checkers exempt them.
+
+The convention applies to the **whole repository**, not just the package: the
+example scripts, the experiment packages, the tests, and the reusable modules
+extracted out of the research notebooks. Test docstrings state the property
+being asserted, which is what makes `pytest -q`'s output readable as a
+specification.
+
+`.ipynb` cells are the one exception, and a deliberate one: notebook cells are
+terse and re-ordered by hand between runs, so they are excluded from the linter
+and from both docstring checks.
 
 ## Docstring coverage & completeness
 
-Two complementary checks, both configured in `pyproject.toml` and run over
-`src/`:
+Two complementary checks, both configured in `pyproject.toml` and run over every
+Python file in the repository:
 
 ```bash
 pip install -e ".[dev]"
-interrogate src   # coverage: every public object HAS a docstring (fail-under = 100)
-pydoclint src     # completeness: every parameter & return IS documented (0 violations)
+PATHS="src examples experiments tests notebooks"
+interrogate $PATHS   # coverage: every public object HAS a docstring (fail-under = 100)
+pydoclint $PATHS     # completeness: every parameter & return IS documented (0 violations)
 ```
 
 - [`interrogate`](https://interrogate.readthedocs.io) (`[tool.interrogate]`)
@@ -68,7 +81,12 @@ pydoclint src     # completeness: every parameter & return IS documented (0 viol
   ignored).
 - [`pydoclint`](https://jsh9.github.io/pydoclint/) (`[tool.pydoclint]`, NumPy
   style) checks docstring **completeness** — that documented parameters/returns
-  match each signature. Zero violations across `src/`.
+  match each signature. Zero violations repo-wide.
+
+Because types are matched between the signature and the docstring, a documented
+parameter needs an annotation. Where the annotation would force a heavy import
+(TensorFlow, a problem class) it is written as a string and the real import goes
+under `if TYPE_CHECKING:`, so `import sciml` stays cheap.
 
 `pydocstyle` (`[tool.pydocstyle]`) can additionally spot-check PEP 257 style.
 
@@ -101,8 +119,11 @@ docstring↔signature type matching pydoclint enforces. The terse multi-statemen
 style (`E702`/`E731`) and `I` (infected compartment, `E741`) are ignored.
 
 ```bash
-ruff check src experiments examples tests
+ruff check .
 ```
+
+Notebooks (`*.ipynb`) are excluded via `extend-exclude`; the `.py` modules
+extracted out of them are not.
 
 ## Continuous integration
 
@@ -110,7 +131,8 @@ Two GitHub Actions workflows (`.github/workflows/`):
 
 - **`ci.yml`** runs on every push/PR to `main`:
   - a fast **backend-free** job — `ruff`, `pydoclint`, `interrogate`,
-    `compileall`, and the numpy `pytest` suite;
+    `compileall`, and the numpy `pytest` suite. All three static checks cover
+    the whole repository, not just `src/`;
   - a **TensorFlow** job (Python 3.11 + `.[all]`) that runs the TF-guarded tests
     *and* smoke-trains a real FNO — the first place the TF engines actually
     execute end-to-end.
