@@ -1,6 +1,6 @@
 # Research studies
 
-Four studies live here. Each is a self-contained piece of research — a question,
+One study stays here as a frozen record (three others, and the WNTS scripts, now have their own repositories). Each is a self-contained piece of research — a question,
 the notebooks that answer it, and a write-up of what came back — as opposed to
 [`src/sciml/`](../src/sciml), which holds the reusable framework, and
 [`experiments/`](../experiments), which holds scripted runs of that framework.
@@ -10,12 +10,16 @@ packaged problem under `sciml.problems` (the SWE, wave and dengue examples all
 arrived that way), and a study that needs a solver, a metric or a method engine
 takes it from `sciml` rather than re-implementing it.
 
-| Study | What it asks | Status | Start with |
+| Study | What it asks | Status | Lives in |
 |---|---|---|---|
-| [`pi_deeponet_swe/`](pi_deeponet_swe) | Do the PI-DeepONet/SWE manuscript's claims survive a corrected reference solver? | Closed; every claim re-measured | [RESULTS.md](pi_deeponet_swe/RESULTS.md) |
-| [`pinn_boussinesq/`](pinn_boussinesq) | Can a PINN solve the dispersive Boussinesq (VBM) system on the standard run-up benchmarks? | Active | [README.md](pinn_boussinesq/README.md) |
-| [`financialdist/`](financialdist) | Is corporate financial distress a first-passage problem on a discoverable vector field? | Closed; pre-registered negative result | [RESULTS.md](financialdist/RESULTS.md) |
-| [`sindy/`](sindy) | Can SINDy recover dengue transmission dynamics from case counts alone? | Active | [research plan](sindy/research_plan_sindy_dengue.md) |
+| [`pi_deeponet_swe/`](pi_deeponet_swe) | Do the PI-DeepONet/SWE manuscript's claims survive a corrected reference solver? | Closed; every claim re-measured | here ([RESULTS.md](pi_deeponet_swe/RESULTS.md)), frozen at tag `pi-deeponet-swe-frozen-2026-10-08` |
+| `pinn_boussinesq` | Can a PINN solve the dispersive Boussinesq (VBM) system on the standard run-up benchmarks? | Active | [`pinn-boussinesq`](https://github.com/phoenixfin/pinn-boussinesq) |
+| `financialdist` | Is corporate financial distress a first-passage problem on a discoverable vector field? | Closed; pre-registered negative result | [`financialdist`](https://github.com/phoenixfin/financialdist) |
+| `sindy` | Can SINDy recover dengue transmission dynamics from case counts alone? | Active | [`sindy-dengue`](https://github.com/phoenixfin/sindy-dengue) |
+
+The other three were split out with their history; each pins `sciml` in its own
+`requirements.txt`. `experiments/wnts` went the same way
+([`wnts-sindyc`](https://github.com/phoenixfin/wnts-sindyc), confidential data).
 
 ## How these studies are run
 
@@ -51,8 +55,4 @@ time. The shape is the same in each:
 
 ## Data
 
-`financialdist/` ships its own data (the cleaned panel, as CSV and XLSX) because
-the study is unreproducible without it. The other studies generate their data
-from solvers in `sciml.solvers`, except the WNTS gas-network study under
-[`experiments/wnts/`](../experiments/wnts), whose source data is confidential and
-not in the tree.
+The studies that stay in-tree generate their data from solvers in `sciml.solvers`.

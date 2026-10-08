@@ -3,7 +3,7 @@
 How to run **your data** through the framework's methods with one call:
 the dataset registry (`sciml.data.datasets`) plus task layers
 (`sciml.tasks`). This is the recommended path for any new real-world
-dataset — bespoke experiment packages (like `experiments/wnts`) are for
+dataset — bespoke experiment packages (like the separate `wnts-sindyc` repository) are for
 full studies, not for routine "data × method" runs.
 
 ---
@@ -60,7 +60,7 @@ universal interface):
 ## The `sysid` task
 
 `sciml.tasks.sysid.run` is the full identification-and-evaluation protocol
-developed in the WNTS study (`experiments/wnts/REPORT.md` documents the
+developed in the WNTS study (`wnts-sindyc`'s `REPORT.md` documents the
 design rationale and every default):
 
 ```python

@@ -84,10 +84,9 @@ src/sciml/
 
 configs/       swe.yaml · wave_obstacle.yaml · dengue.yaml (+ JSON)
 experiments/   swe/{train,evaluate,ablation,nd_scaling,physics_attractor} · wave_obstacle ·
-               epidemiology · wnts (gas-network SINDYc study) — see experiments/README.md
+               epidemiology — see experiments/README.md
 notebooks/     four research studies, each with its own README:
-               pi_deeponet_swe (SWE audit) · pinn_boussinesq (dispersive PINN) ·
-               financialdist (panel SINDy) · sindy (dengue structure discovery)
+               pi_deeponet_swe (SWE audit, frozen); the other studies are separate repos
 examples/      01–13 graded gallery
 tests/         numpy tests (always run) + TF-guarded tests
 docs/          this documentation

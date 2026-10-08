@@ -4,7 +4,7 @@ Hourly pressure/energy-rate telemetry at the endpoint metering stations of
 the West Natuna Transportation System: four sources (Anoa, Kakap, Hang
 Tuah, Gajah Baru) and one sink (ORF). Only purely operational channels are
 loaded; gas-composition columns are excluded. See
-``experiments/wnts/REPORT.md`` for the dataset study.
+the ``wnts-sindyc`` repository's ``REPORT.md`` for the dataset study.
 
 Data files are contract years (``2019.csv`` covers Aug 2018 -- Jul 2019).
 The data directory is taken from the ``SCIML_WNTS_DIR`` environment

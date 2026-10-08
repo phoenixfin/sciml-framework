@@ -82,16 +82,11 @@ configs/       swe.yaml, wave_obstacle.yaml, dengue.yaml (+ JSON also supported)
 experiments/   scripted studies over the framework -- see experiments/README.md
   swe/            train, evaluate, ablation, nd_scaling, physics_attractor
   wave_obstacle/  run          epidemiology/  run
-  wnts/           gas-network SINDYc study (confidential data) -- see its REPORT.md
-notebooks/     open research, one directory per study -- see notebooks/README.md
+notebooks/     the one study kept in-tree as a frozen record -- see notebooks/README.md
   pi_deeponet_swe/  audit of the SWE study: a combined Kaggle notebook, a
                     well-balanced HLL solver, a port of the v6 pipeline, and
                     RESULTS.md -- see below                     (numpy + TensorFlow)
-  pinn_boussinesq/  PINN on the dispersive Boussinesq (VBM) system: five run-up
-                    benchmarks, an exact Carrier-Greenspan reference   (TensorFlow)
-  financialdist/    corporate distress as a first-passage problem: pre-registered
-                    design, cleaned panel, a negative result done properly  (numpy)
-  sindy/            dengue structure discovery from case counts alone     (numpy)
+                    (the other studies live in their own repositories -- see notebooks/README.md)
 tests/         numpy tests (always run) + TF-guarded tests (skip without TF)
 ```
 
@@ -209,7 +204,7 @@ sciml sysid --data wnts --data-arg years=[2019] \
 ```
 
 The `sysid` protocol is the one developed in the WNTS gas-network study
-(`experiments/wnts/REPORT.md` — the study is also the design rationale):
+([`wnts-sindyc`](https://github.com/phoenixfin/wnts-sindyc) `REPORT.md` — the study is also the design rationale):
 **causal** trailing operating point (no future information), discrete-time
 fitting with the consistent Euler rollout, chronological or transfer splits,
 multi-horizon forecast NRMSE against persistence / climatology / daily-repeat
@@ -258,19 +253,11 @@ python -m experiments.swe.physics_attractor --steps 5000
 python -m experiments.wave_obstacle.run     --config configs/wave_obstacle.yaml
 python -m experiments.epidemiology.run      --config configs/dengue.yaml
 
-# SINDYc / WNTS gas network (confidential data; see experiments/wnts/REPORT.md)
-python -m experiments.wnts.run              # six-model ladder + baselines + figures
-python -m experiments.wnts.multi_year       # A1: per-year + transfer robustness
-python -m experiments.wnts.ablation_states  # A3: state-dimension / stability mechanism
-python -m experiments.wnts.ablation_library # B1: polynomial vs physics libraries
-python -m experiments.wnts.ablation_inputs  # B2: which boundary flows matter
-python -m experiments.wnts.sweep_hyper      # B3: threshold/alpha/dt/clip sensitivity
-python -m experiments.wnts.benchmark_dmdc   # B4: DMDc null-model comparison
+# SINDYc / WNTS gas network: now its own repository, https://github.com/phoenixfin/wnts-sindyc
 ```
 
-The WNTS study's consolidated findings (data quirks, protocol design,
-results A1–A4 and B1–B4, and the remaining experiment plan) are in
-[`experiments/wnts/REPORT.md`](experiments/wnts/REPORT.md).
+The WNTS study (confidential data) lives in its own repository,
+[`wnts-sindyc`](https://github.com/phoenixfin/wnts-sindyc); its protocol became `sciml.tasks.sysid`.
 
 > The `experiments/swe/{ablation,nd_scaling,physics_attractor}` scripts mirror the
 > *original* notebook sections. Several of their conclusions do not survive a

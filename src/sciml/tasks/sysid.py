@@ -1,7 +1,7 @@
 """System identification on segmented time series: one call, full protocol.
 
 Generalizes the evaluation pipeline developed for the WNTS gas-network
-study (``experiments/wnts``) to any :class:`~sciml.data.datasets.TimeSeriesData`:
+study (the ``wnts-sindyc`` repository) to any :class:`~sciml.data.datasets.TimeSeriesData`:
 
 1. choose state and input channels by name;
 2. reference every signal to an operating point (``causal`` trailing mean

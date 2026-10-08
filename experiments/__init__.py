@@ -9,6 +9,5 @@ arguments, call runners, and write artefacts into ``outputs/``.
                         evaluation, and the three follow-up studies.
 ``wave_obstacle``       PINN on the moving-boundary wave problem.
 ``epidemiology``        SINDy identification of a dengue transmission rate.
-``wnts``                SINDYc on a gas transmission network (see REPORT.md).
 ======================  ====================================================
 """

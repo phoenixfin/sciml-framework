@@ -40,34 +40,7 @@ Both accept `--config` (YAML or JSON) and fall back to the dataclass defaults;
 
 ## Gas transmission network — SINDYc
 
-The one study here that is not a packaged `sciml.problems` example, because its
-data is confidential and not in the tree. Its consolidated findings — data
-quirks, protocol design, results A1–A4 and B1–B4 — are in
-[`wnts/REPORT.md`](wnts/REPORT.md), and its evaluation protocol is the one that
-became [`sciml.tasks.sysid`](../src/sciml/tasks/sysid.py).
-
-```bash
-python -m experiments.wnts.run              # six-model ladder + baselines + figures
-python -m experiments.wnts.multi_year       # A1: per-year + transfer robustness
-python -m experiments.wnts.ablation_states  # A3: state-dimension / stability mechanism
-python -m experiments.wnts.ablation_library # B1: polynomial vs physics libraries
-python -m experiments.wnts.ablation_inputs  # B2: which boundary flows matter
-python -m experiments.wnts.sweep_hyper      # B3: threshold/alpha/dt/clip sensitivity
-python -m experiments.wnts.benchmark_dmdc   # B4: DMDc null-model comparison
-```
-
-Every script starts from `wnts.run.build_parser()` — either parsing the real
-command line, or taking `parse_args([])` as a defaults namespace — so the
-protocol constants stay identical across the study. Point it at the data with
-`--data-dir`, and choose the contract years with `--years` / `--test-years`.
-
-## Conventions
-
-- **Artefacts, not state.** Everything lands under `outputs/` (gitignored):
-  figures as `fig_*.png`, metrics as `summary.json` / `<study>.json`.
-- **Configs are files.** Anything worth reproducing goes in `configs/` and is
-  loaded with `--config`, not edited into the script.
-- **Determinism** via `sciml.core.seeding.seed_everything`, and multi-seed
-  contrasts wherever a single run could flip a conclusion.
-- Docstrings, lint and tests are gated the same way as `src/` — see
-  [docs/reference.md](../docs/reference.md).
+Moved to its own repository, [`wnts-sindyc`](https://github.com/phoenixfin/wnts-sindyc): the data is
+confidential, so the study never belonged with the packaged problems. Its
+evaluation protocol is the one that became
+[`sciml.tasks.sysid`](../src/sciml/tasks/sysid.py).
